@@ -54,7 +54,7 @@ export const REPORT_VERSION = 1;
  * @property {string} step  collector id or dimension id
  * @property {string} label  text for the spinner line
  * @property {'start' | 'done'} status
- * @property {string[]} [checks]  check progress labels covered by an assess step
+ * @property {Array<{ id: string, label: string }>} [checks]  the checks covered by an assess step, with their progress labels
  */
 
 /**
@@ -90,7 +90,7 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
 
   for (const dimension of rubric.dimensions) {
     const label = dimension.progress ?? `Assessing ${dimension.title.toLowerCase()}...`;
-    const checkLabels = dimension.checks.map((c) => c.progress);
+    const checkLabels = dimension.checks.map((c) => ({ id: c.id, label: c.progress }));
     onProgress({ phase: 'assess', step: dimension.id, label, status: 'start', checks: checkLabels });
     let outcome;
     try {

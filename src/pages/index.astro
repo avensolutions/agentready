@@ -27,8 +27,17 @@ const support =
         placeholder="https://example.com"
         required
       />
-      <button class="btn btn-solid" type="submit">Check site</button>
+      <button class="btn btn-solid" id="scan-submit" type="submit">Check site</button>
     </form>
+
+    <div class="scan-status" id="scan-status" hidden>
+      <div class="scan-current" id="scan-current" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <p class="scan-label" id="scan-label">Starting the scan...</p>
+      </div>
+      <ol class="scan-steps" id="scan-steps" aria-label="Completed steps"></ol>
+      <div class="scan-result" id="scan-result" hidden aria-live="polite"></div>
+    </div>
   </section>
 </Base>
 
@@ -67,18 +76,298 @@ const support =
   .scan-form .field { flex: 1; min-width: 0; }
   .scan-form .btn { flex: none; }
 
+  /* ---------- scanning state ---------- */
+
+  .scan-status {
+    max-width: 640px;
+    margin: 40px auto 0;
+    text-align: left;
+  }
+  .scan-current {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 44px;
+  }
+  .scan-label {
+    margin: 0;
+    max-width: none;
+    font-size: var(--text-ui);
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .spinner {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--hairline);
+    border-top-color: var(--olive);
+    animation: spin 0.9s linear infinite;
+  }
+  .scan-status.is-finished .spinner { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .scan-steps {
+    list-style: none;
+    margin: 18px 0 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .scan-steps > li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+  }
+  .scan-steps > li.is-done { color: var(--ink); }
+  .scan-steps .tick {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--hairline);
+    transform: translateY(-1px);
+  }
+  .scan-steps li.is-done > .tick { background: var(--olive); }
+  .scan-steps .checks {
+    list-style: none;
+    flex-basis: 100%;
+    margin: 4px 0 0 20px;
+    display: grid;
+    gap: 4px;
+  }
+  .scan-steps .checks li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: var(--text-fine);
+    color: var(--ink-muted);
+  }
+  .scan-steps .checks li.is-done { color: var(--ink); }
+  .scan-steps .score { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .scan-result {
+    margin-top: 24px;
+    padding: 24px 28px;
+    background: var(--surface);
+    border-radius: var(--r-lg);
+  }
+  .scan-result p { max-width: none; }
+  .scan-result .score-line {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--text-h3);
+    letter-spacing: -0.01em;
+  }
+  .scan-result .btn { margin-top: 16px; }
+  .scan-result.is-error { background: transparent; border: 1px solid var(--frame); }
+  .scan-result.is-error p { color: var(--ink); }
+
   @media (max-width: 768px) {
     .landing { padding-top: 56px; }
     .scan-form { flex-direction: column; }
+    .scan-status { margin-top: 32px; }
   }
 </style>
 
 <script>
-  // A shared ?url= link fills the field. Starting the scan automatically is
-  // wired up with the scan endpoint.
-  const field = document.getElementById('url');
+  // Landing page behaviour: submit or a shared ?url= link starts a scan, the
+  // spinner line shows the step that is running, completed steps are listed
+  // beneath, and the result or error replaces the spinner. Every line comes
+  // from a progress event the pipeline sent for a real step.
+  const form = /** @type {HTMLFormElement} */ (document.getElementById('scan-form'));
+  const field = /** @type {HTMLInputElement} */ (document.getElementById('url'));
+  const submit = /** @type {HTMLButtonElement} */ (document.getElementById('scan-submit'));
+  const status = /** @type {HTMLElement} */ (document.getElementById('scan-status'));
+  const label = /** @type {HTMLElement} */ (document.getElementById('scan-label'));
+  const steps = /** @type {HTMLOListElement} */ (document.getElementById('scan-steps'));
+  const result = /** @type {HTMLElement} */ (document.getElementById('scan-result'));
+
+  /** @type {Map<string, HTMLLIElement>} */
+  const stepItems = new Map();
+  /** @type {Map<string, HTMLLIElement>} */
+  const checkItems = new Map();
+  let running = false;
+
+  /** @param {string} text */
+  function setLabel(text) {
+    label.textContent = text;
+  }
+
+  /** @param {string} key @param {string} text */
+  function stepItem(key, text) {
+    let li = stepItems.get(key);
+    if (!li) {
+      li = document.createElement('li');
+      const tick = document.createElement('span');
+      tick.className = 'tick';
+      const span = document.createElement('span');
+      span.className = 'text';
+      span.textContent = text;
+      li.append(tick, span);
+      steps.append(li);
+      stepItems.set(key, li);
+    }
+    return li;
+  }
+
+  /** @param {{ phase: string, step: string, label: string, status: string, checks?: Array<{ id: string, label: string }> }} e */
+  function onProgress(e) {
+    if (e.status === 'start') {
+      setLabel(e.label);
+      if (e.phase === 'start') return;
+      const li = stepItem(`${e.phase}:${e.step}`, e.label.replace(/\.\.\.$/, ''));
+      if (e.checks && e.checks.length && !li.querySelector('.checks')) {
+        const ul = document.createElement('ul');
+        ul.className = 'checks';
+        for (const c of e.checks) {
+          const item = document.createElement('li');
+          const name = document.createElement('span');
+          name.textContent = c.label.replace(/\.\.\.$/, '');
+          const score = document.createElement('span');
+          score.className = 'score';
+          item.append(name, score);
+          ul.append(item);
+          checkItems.set(c.id, item);
+        }
+        li.append(ul);
+      }
+    } else if (e.status === 'done' && e.phase !== 'start') {
+      stepItem(`${e.phase}:${e.step}`, e.label.replace(/\.\.\.$/, '')).classList.add('is-done');
+    }
+  }
+
+  /** @param {{ id: string, score: number | null }} c */
+  function onCheck(c) {
+    const item = checkItems.get(c.id);
+    if (!item) return;
+    item.classList.add('is-done');
+    const score = item.querySelector('.score');
+    if (score) score.textContent = c.score === null ? 'not assessed' : `${c.score} / 4`;
+  }
+
+  /** @param {{ id: string, overall: number | null, band: { label: string }, url: string }} d */
+  function onDone(d) {
+    status.classList.add('is-finished');
+    setLabel('Scan complete.');
+    result.hidden = false;
+    result.classList.remove('is-error');
+    result.replaceChildren();
+    const line = document.createElement('p');
+    line.className = 'score-line';
+    line.textContent = d.overall === null ? 'The site could not be scored.' : `Overall score ${d.overall} out of 100. ${d.band.label}.`;
+    const link = document.createElement('a');
+    link.className = 'btn btn-solid';
+    link.href = `/r/${encodeURIComponent(d.id)}`;
+    link.textContent = 'View the report';
+    result.append(line, link);
+    finish();
+  }
+
+  /** @param {{ code: string, message: string }} e */
+  function onError(e) {
+    status.classList.add('is-finished');
+    setLabel('The scan stopped.');
+    result.hidden = false;
+    result.classList.add('is-error');
+    result.replaceChildren();
+    const p = document.createElement('p');
+    p.textContent = e.message || 'The scan failed. Please try again.';
+    result.append(p);
+    finish();
+  }
+
+  function finish() {
+    running = false;
+    submit.disabled = false;
+    field.disabled = false;
+  }
+
+  /** @param {string} url */
+  async function startScan(url) {
+    if (running) return;
+    running = true;
+    submit.disabled = true;
+    field.disabled = true;
+    status.hidden = false;
+    status.classList.remove('is-finished');
+    result.hidden = true;
+    steps.replaceChildren();
+    stepItems.clear();
+    checkItems.clear();
+    setLabel('Starting the scan...');
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('url') !== url) {
+      params.set('url', url);
+      history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+    }
+
+    let response;
+    try {
+      response = await fetch(`/api/scan?url=${encodeURIComponent(url)}`, { headers: { accept: 'text/event-stream' } });
+    } catch {
+      onError({ code: 'network', message: 'Could not reach the scan service. Check your connection and try again.' });
+      return;
+    }
+    if (!response.ok || !response.body) {
+      onError({ code: 'http', message: `The scan service answered with ${response.status}. Please try again later.` });
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let ended = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary !== -1) {
+        const frame = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf('\n\n');
+        let event = 'message';
+        const data = [];
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+        }
+        if (!data.length) continue;
+        let payload;
+        try {
+          payload = JSON.parse(data.join('\n'));
+        } catch {
+          continue;
+        }
+        if (event === 'progress') onProgress(payload);
+        else if (event === 'check') onCheck(payload);
+        else if (event === 'done') {
+          ended = true;
+          onDone(payload);
+        } else if (event === 'error') {
+          ended = true;
+          onError(payload);
+        }
+      }
+    }
+    if (!ended) onError({ code: 'disconnected', message: 'The connection closed before the scan finished. Please try again.' });
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const url = field.value.trim();
+    if (url) startScan(url);
+  });
+
   const fromQuery = new URLSearchParams(window.location.search).get('url');
-  if (field instanceof HTMLInputElement && fromQuery && !field.value) {
+  if (fromQuery) {
     field.value = fromQuery;
+    startScan(fromQuery);
   }
 </script>

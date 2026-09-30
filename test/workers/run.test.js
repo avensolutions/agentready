@@ -79,7 +79,7 @@ describe('runScan', () => {
     await runScan({ url: `${ORIGIN}/`, provider: createMockProvider(), fetchImpl: site, onProgress: (e) => events.push(e) });
     const discovery = events.find((e) => e.phase === 'assess' && e.step === 'discovery');
     expect(discovery.label).toBe('Assessing discovery and access...');
-    expect(discovery.checks).toEqual(rubric.dimensionById.get('discovery').checks.map((c) => c.progress));
+    expect(discovery.checks).toEqual(rubric.dimensionById.get('discovery').checks.map((c) => ({ id: c.id, label: c.progress })));
   });
 
   it('turns a quota error into a clear scan error', async () => {
