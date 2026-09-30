@@ -21,7 +21,8 @@
     "astro": "^7.3.5"
   },
   "devDependencies": {
-    "vitest": "^5.0.2",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "vitest": "^4.1.0",
     "wrangler": "^4.144.0"
   }
 }

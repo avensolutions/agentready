@@ -194,12 +194,12 @@ Derived from the numbers above. The code enforces these as constants and the tes
 
 | Item | Per scan | Cap |
 | --- | --- | --- |
-| Target-site fetches (robots, sitemap, llms.txt, llms-full.txt, home page, sampled pages, markdown alternates, API and MCP probes) | about 15 | 20 including redirect hops |
+| Target-site fetches (robots, sitemap, llms.txt, llms-full.txt, home page, sampled pages, markdown alternates, API and MCP probes) | about 17 | 24 including redirect hops |
 | LLM calls (one per dimension) | 5 | 8 including retries |
 | KV operations (cache read, report write) | 2 | 2 |
 | Turnstile verification | 1 | 1 |
-| Total subrequests | about 23 | 31, leaving headroom under 50 |
-| Bytes read per fetched page | up to 512 KB | hard stop, body streamed |
+| Total subrequests | about 25 | 35, leaving headroom under 50 |
+| Bytes read per fetched page | home 384 KB, sampled pages 192 KB, text files 64 KB | hard stop, body streamed |
 | Evidence sent to the LLM per scan | about 50k tokens across all calls | fits several scans a minute inside 250k TPM |
 | Wall time | typically 20 to 40 s | 90 s, then the scan is failed |
 | Scans a day at 5 LLM calls each | about 80 to 100 on Flash-Lite | quota is per model per project |

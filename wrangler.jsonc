@@ -2,7 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "axcheck",
   "main": "@astrojs/cloudflare/entrypoints/server",
-  "compatibility_date": "2026-09-30",
+  // The highest date the workerd bundled with @cloudflare/vitest-pool-workers
+  // supports. Tests and production share it so behaviour cannot drift; bump
+  // both when the pool updates.
+  "compatibility_date": "2026-08-22",
   // nodejs_compat is on by default for compatibility dates from 2026-08-04.
   // global_fetch_strictly_public makes fetch() to the parent site behave like
   // any public request (see docs/limits.md).

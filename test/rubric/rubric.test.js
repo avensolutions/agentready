@@ -35,7 +35,7 @@ describe('bundled rubric', () => {
 
   it('keeps plain keyboard punctuation in rubric prose', () => {
     for (const f of rubricFiles) {
-      expect(f.text, f.path).not.toMatch(/[–—‘’“”→]/);
+      expect(f.text, f.path).not.toMatch(/[\u2013\u2014\u2018\u2019\u201c\u201d\u2192]/);
     }
   });
 
