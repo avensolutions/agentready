@@ -110,10 +110,11 @@ These apply to UI copy, report text, LLM-facing instructions that shape report w
 
 Keep this section current as scripts are added.
 
-- `npm run dev` - local dev server
+- `npm run dev` - local dev server (runs in workerd)
 - `npm run build` - production build, including rubric validation
+- `npm run preview` - serve the production build in workerd
 - `npm test` - unit tests (Vitest)
-- `npx wrangler deploy` - deploy
+- `npm run deploy` - build and deploy with wrangler
 
 ## Working agreements
 

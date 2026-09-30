@@ -1,0 +1,84 @@
+---
+import Base from '../layouts/Base.astro';
+
+const title = 'axcheck';
+const byline = 'How well does your website work for AI agents?';
+const support =
+  'Enter a site address for a scored report on discovery, content retrievability, structured data, answerability and agent actionability, with findings and recommendations.';
+---
+<Base description={`${byline} ${support}`}>
+  <section class="landing">
+    <p class="label">Agent experience check</p>
+    <h1>{title}</h1>
+    <p class="byline">{byline}</p>
+    <p class="support">{support}</p>
+
+    <form class="scan-form" id="scan-form" action="/" method="get">
+      <label class="sr" for="url">Website address</label>
+      <input
+        class="field"
+        id="url"
+        name="url"
+        type="url"
+        inputmode="url"
+        autocomplete="url"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="https://example.com"
+        required
+      />
+      <button class="btn btn-solid" type="submit">Check site</button>
+    </form>
+  </section>
+</Base>
+
+<style>
+  .landing {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 96px var(--h-pad) var(--section-y);
+    text-align: center;
+  }
+  .landing .label { display: block; margin-bottom: 26px; }
+  .landing h1 {
+    font-size: var(--text-h1);
+    letter-spacing: -0.03em;
+  }
+  .byline {
+    margin: 18px auto 0;
+    max-width: 58ch;
+    font-size: clamp(18px, 1.8vw, 24px);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+  .landing .support {
+    margin: 14px auto 0;
+    max-width: 62ch;
+    font-size: clamp(15px, 1.3vw, 17px);
+    line-height: 1.55;
+    text-wrap: balance;
+  }
+  .scan-form {
+    display: flex;
+    gap: 12px;
+    max-width: 640px;
+    margin: 44px auto 0;
+  }
+  .scan-form .field { flex: 1; min-width: 0; }
+  .scan-form .btn { flex: none; }
+
+  @media (max-width: 768px) {
+    .landing { padding-top: 56px; }
+    .scan-form { flex-direction: column; }
+  }
+</style>
+
+<script>
+  // A shared ?url= link fills the field. Starting the scan automatically is
+  // wired up with the scan endpoint.
+  const field = document.getElementById('url');
+  const fromQuery = new URLSearchParams(window.location.search).get('url');
+  if (field instanceof HTMLInputElement && fromQuery && !field.value) {
+    field.value = fromQuery;
+  }
+</script>

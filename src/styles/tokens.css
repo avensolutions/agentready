@@ -1,0 +1,100 @@
+/* ------------------------------------------------------------------
+   axcheck design tokens
+
+   Derived from the parent site, theoverstorygroup.com:
+   - src/styles/global.css (:root block) for colours, radii and layout
+   - ref/overstory-colour-swatches_5.html (August 2026) for the palette
+     roles and the retired colours
+   Components use only these tokens. When the parent changes, change
+   this file, nothing else.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* core palette: page backgrounds, type, primary accent */
+  --parchment: #F4F1EA;
+  --ink: #28362A;
+  --ink-muted: #5A6350;
+  --olive: #5C6B4B;
+  --sage: #9FB299;
+
+  /* accents: tags, rules and small marks, never a section background */
+  --navy: #1E2530;
+  --periwinkle: #AEBEE8;
+  --olive-deep: #63652E;
+  --terracotta: #C15A2E;
+  --coral: #C3593B;
+  --blue: #4C6C98;
+
+  /* illustration plate ground only */
+  --cream: #F0EAE0;
+
+  /* ink and parchment at strength */
+  --surface: rgba(40, 54, 42, 0.045);
+  --surface-2: rgba(40, 54, 42, 0.075);
+  --hairline: rgba(40, 54, 42, 0.12);
+  --frame: rgba(40, 54, 42, 0.22);
+  --ink-soft: rgba(40, 54, 42, 0.86);
+  --parchment-soft: rgba(244, 241, 234, 0.76);
+  --parchment-frame: rgba(244, 241, 234, 0.32);
+  --nav-bg: rgba(244, 241, 234, 0.88);
+  --shadow-menu: 0 12px 32px rgba(40, 54, 42, 0.08);
+
+  /* score bands, used on small marks and bars only */
+  --score-strong: var(--olive);
+  --score-fair: var(--sage);
+  --score-weak: var(--ink-muted);
+  --score-poor: var(--terracotta);
+
+  /* type */
+  --font-display: 'Schibsted Grotesk', sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-cond: 'Barlow Condensed', sans-serif;
+
+  --text-base: 16px;
+  --leading-body: 1.65;
+  --text-small: 14px;
+  --text-fine: 13px;
+  --text-ui: 15px;
+  --text-support: 18px;
+  --text-label: 11px;
+  --tracking-label: 0.18em;
+  --text-h1: clamp(36px, 5.2vw, 64px);
+  --text-h2: clamp(30px, 4.4vw, 56px);
+  --text-h3: clamp(21px, 1.9vw, 25px);
+  --text-stat: clamp(32px, 3.2vw, 42px);
+  --text-wordmark: 20px;
+  --tracking-wordmark: 0.12em;
+  --measure: 62ch;
+
+  /* radii */
+  --r-xl: 36px;
+  --r-lg: 28px;
+  --r-md: 20px;
+  --r-sm: 14px;
+  --r-pill: 999px;
+
+  /* layout */
+  --max-w: 1152px;
+  --h-pad: 48px;
+  --section-y: 128px;
+  --nav-y: 22px;
+  --gap: 24px;
+
+  /* controls */
+  --btn-pad: 15px 30px;
+  --btn-pad-quiet: 14px 28px;
+  --btn-pad-sm: 9px 20px;
+  --field-pad: 14px 22px;
+
+  /* motion and focus */
+  --ease: 0.2s ease;
+  --focus-ring: 2px solid var(--olive);
+  --focus-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --h-pad: 24px;
+    --section-y: 88px;
+  }
+}

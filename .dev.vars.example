@@ -1,0 +1,9 @@
+# Copy to .dev.vars (git-ignored). Local development values only.
+# Production secrets are set with `npx wrangler secret put <NAME>`.
+
+# Google Gemini API key from https://aistudio.google.com/apikey
+GEMINI_API_KEY=
+
+# Cloudflare Turnstile secret. This value is the documented test secret that
+# always passes; it is only valid with the matching test site key.
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
