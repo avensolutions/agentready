@@ -107,6 +107,37 @@ describe('handleScan', () => {
     expect(quota.some((e) => e.event === 'progress' && /** @type {any} */ (e.data).phase === 'collect')).toBe(true);
   });
 
+  it('applies the rate limiter before anything else', async () => {
+    let fetched = 0;
+    let verified = 0;
+    const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`, { headers: { 'cf-connecting-ip': '203.0.113.9' } }), {
+      fetchImpl: async () => (fetched += 1, new Response('')),
+      limiter: { allow: async (key) => (expect(key).toBe('203.0.113.9'), false) },
+      verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }),
+    });
+    expect(events).toEqual([{ event: 'error', data: { code: 'rate-limited', message: expect.stringContaining('Too many checks') } }]);
+    expect(fetched).toBe(0);
+    expect(verified).toBe(0);
+  });
+
+  it('requires a passing Turnstile token, passed from the query or the body with the client ip', async () => {
+    /** @type {any[]} */
+    const seen = [];
+    const verifier = async (token, ip) => (seen.push([token, ip]), { ok: token === 'good', codes: token === 'good' ? [] : ['invalid-input-response'] });
+    const bad = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/&token=bad`), { verifyTurnstile: verifier });
+    expect(bad).toEqual([{ event: 'error', data: { code: 'turnstile', message: expect.stringContaining('security check') } }]);
+    const good = await run(new Request('https://axcheck.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/`, token: 'good' }), headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.9' } }), { verifyTurnstile: verifier });
+    expect(good[good.length - 1].event).toBe('done');
+    expect(seen).toEqual([['bad', undefined], ['good', '203.0.113.9']]);
+  });
+
+  it('validates the address before spending a Turnstile verification', async () => {
+    let verified = 0;
+    const events = await run(new Request('https://axcheck.test/api/scan?url=ftp://x.example.com/&token=t'), { verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }) });
+    expect(events[0]).toMatchObject({ event: 'error', data: { code: 'invalid-url' } });
+    expect(verified).toBe(0);
+  });
+
   it('times out a scan that runs too long', async () => {
     const slow = createMockProvider({ delayMs: 200 });
     const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { provider: slow, timeoutMs: 100 });

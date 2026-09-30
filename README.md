@@ -43,4 +43,8 @@ npm run deploy   # build and deploy with wrangler
 
 ## Configuration
 
-`wrangler.jsonc` holds the Worker config, the `REPORTS` KV binding and plain vars (`GEMINI_MODEL`, `REPORT_TTL_DAYS`). Secrets (`GEMINI_API_KEY`, `TURNSTILE_SECRET_KEY`) go in `.dev.vars` locally and `npx wrangler secret put <NAME>` for deploys. Never commit keys.
+`wrangler.jsonc` holds the Worker config, the `REPORTS` KV binding, the `SCAN_LIMITER` rate limiting binding and plain vars (`GEMINI_MODEL`, `REPORT_TTL_DAYS`). Secrets (`GEMINI_API_KEY`, `TURNSTILE_SECRET_KEY`) go in `.dev.vars` locally and `npx wrangler secret put <NAME>` for deploys. The public Turnstile site key is a build-time variable, `PUBLIC_TURNSTILE_SITE_KEY`, set in `.env` or the build environment. Never commit keys.
+
+Set `LLM_PROVIDER=mock` in `.dev.vars` to run locally without a Gemini key.
+
+Deployment steps are in `docs/deploy.md`.

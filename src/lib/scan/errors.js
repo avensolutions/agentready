@@ -1,5 +1,5 @@
 /**
- * @typedef {'invalid-url' | 'unreachable' | 'http-error' | 'robots' | 'budget' | 'timeout' | 'llm-quota' | 'llm' | 'internal'} ScanErrorCode
+ * @typedef {'invalid-url' | 'unreachable' | 'http-error' | 'robots' | 'budget' | 'timeout' | 'llm-quota' | 'llm' | 'rate-limited' | 'turnstile' | 'internal'} ScanErrorCode
  */
 
 /** An error with a code the UI can map to a clear message. */

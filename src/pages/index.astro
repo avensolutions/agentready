@@ -1,4 +1,5 @@
 ---
+import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import Base from '../layouts/Base.astro';
 
 const title = 'axcheck';
@@ -29,6 +30,9 @@ const support =
       />
       <button class="btn btn-solid" id="scan-submit" type="submit">Check site</button>
     </form>
+    <!-- Turnstile renders here only when a challenge needs interaction -->
+    <div class="scan-turnstile" id="turnstile" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY}></div>
+    <script is:inline src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 
     <div class="scan-status" id="scan-status" hidden>
       <div class="scan-current" id="scan-current" aria-live="polite">
@@ -75,6 +79,11 @@ const support =
   }
   .scan-form .field { flex: 1; min-width: 0; }
   .scan-form .btn { flex: none; }
+  .scan-turnstile {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .scan-turnstile:not(:empty) { margin-top: 16px; }
 
   @media (max-width: 768px) {
     .landing { padding-top: 56px; }
@@ -198,6 +207,73 @@ const support =
   const checkItems = new Map();
   let running = false;
 
+  // ---------- Turnstile ----------
+  // Explicit rendering from this module: no global callback names, and the
+  // widget only shows itself when a challenge needs interaction. A token is
+  // single-use, so the widget is reset after every scan attempt.
+  const turnstileHost = /** @type {HTMLElement} */ (document.getElementById('turnstile'));
+  const siteKey = turnstileHost.dataset.sitekey ?? '';
+  /** @type {string | null} */
+  let token = null;
+  /** @type {string | number | null} */
+  let widgetId = null;
+  /** @type {Array<(token: string) => void>} */
+  let waiters = [];
+
+  function renderWidget() {
+    const ts = /** @type {any} */ (window).turnstile;
+    if (!ts || widgetId !== null) return;
+    widgetId = ts.render(turnstileHost, {
+      sitekey: siteKey,
+      appearance: 'interaction-only',
+      theme: 'light',
+      size: 'flexible',
+      callback: (/** @type {string} */ t) => {
+        token = t;
+        for (const resolve of waiters.splice(0)) resolve(t);
+      },
+      'expired-callback': () => {
+        token = null;
+      },
+      'error-callback': () => {
+        token = null;
+      },
+    });
+  }
+
+  (function waitForTurnstile() {
+    let tries = 0;
+    const tick = () => {
+      renderWidget();
+      if (widgetId === null && tries++ < 400) setTimeout(tick, 50);
+    };
+    tick();
+  })();
+
+  /** @returns {Promise<string>} */
+  function getToken() {
+    if (token) return Promise.resolve(token);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('turnstile-timeout')), 30_000);
+      waiters.push((t) => {
+        clearTimeout(timer);
+        resolve(t);
+      });
+    });
+  }
+
+  function resetTurnstile() {
+    token = null;
+    const ts = /** @type {any} */ (window).turnstile;
+    if (ts && widgetId !== null) {
+      try {
+        ts.reset(widgetId);
+      } catch {
+        // the widget will re-render on the next attempt
+      }
+    }
+  }
+
   /** @param {string} text */
   function setLabel(text) {
     label.textContent = text;
@@ -293,6 +369,7 @@ const support =
     running = false;
     submit.disabled = false;
     field.disabled = false;
+    resetTurnstile();
   }
 
   /** @param {string} url */
@@ -315,9 +392,23 @@ const support =
       history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
     }
 
+    let turnstileToken;
+    try {
+      if (!token) setLabel('Waiting for the security check...');
+      turnstileToken = await getToken();
+    } catch {
+      onError({ code: 'turnstile', message: 'The security check did not load. Reload the page and try again.' });
+      return;
+    }
+    setLabel('Starting the scan...');
+
     let response;
     try {
-      response = await fetch(`/api/scan?url=${encodeURIComponent(url)}`, { headers: { accept: 'text/event-stream' } });
+      response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { accept: 'text/event-stream', 'content-type': 'application/json' },
+        body: JSON.stringify({ url, token: turnstileToken }),
+      });
     } catch {
       onError({ code: 'network', message: 'Could not reach the scan service. Check your connection and try again.' });
       return;

@@ -1,5 +1,6 @@
 import { rubric, rubricHash } from '../rubric/index.js';
 import { UrlError, normaliseTarget } from '../safety/url.js';
+import { clientIp } from '../security/ratelimit.js';
 import { BUDGET } from './budget.js';
 import { ScanError } from './errors.js';
 import { reportIdFor } from './report-id.js';
@@ -13,7 +14,11 @@ import { DEFAULT_TTL_DAYS, isFresh } from './store.js';
  * the pipeline runs, then `done` with the report id or `error` with a code
  * and a user-facing message.
  *
- * Accepts GET ?url= and POST with a JSON body { url }.
+ * Accepts GET ?url=&token= and POST with a JSON body { url, token }.
+ *
+ * Guards run in cost order before any work: the rate limiter (no
+ * subrequest), URL validation, then Turnstile (one subrequest), then the
+ * stored-report check, then the scan.
  */
 
 /**
@@ -29,17 +34,29 @@ import { DEFAULT_TTL_DAYS, isFresh } from './store.js';
  * @param {import('../llm/index.js').LlmProvider} options.provider
  * @param {typeof fetch} [options.fetchImpl]
  * @param {ReportStore} [options.store]
+ * @param {import('../security/ratelimit.js').RateLimiter} [options.limiter]
+ * @param {(token: string, ip?: string) => Promise<import('../security/turnstile.js').TurnstileResult>} [options.verifyTurnstile]
  * @param {number} [options.timeoutMs]
  * @param {number} [options.keepAliveMs]
  * @param {() => Date} [options.now]
  * @returns {Promise<Response>}
  */
-export async function handleScan(request, { provider, fetchImpl, store, timeoutMs = BUDGET.scanTimeoutMs, keepAliveMs, now = () => new Date() }) {
-  const input = await readInput(request);
+export async function handleScan(request, { provider, fetchImpl, store, limiter, verifyTurnstile, timeoutMs = BUDGET.scanTimeoutMs, keepAliveMs, now = () => new Date() }) {
+  const { url: input, token } = await readInput(request);
+  const ip = clientIp(request);
   const stream = createEventStream({ keepAliveMs });
 
   const run = async () => {
+    if (limiter && !(await limiter.allow(ip))) {
+      throw new ScanError('rate-limited', 'Too many checks from your connection in the last minute. Please wait a minute and try again.');
+    }
     const target = normaliseTarget(input);
+    if (verifyTurnstile) {
+      const verdict = await verifyTurnstile(token, ip === 'unknown' ? undefined : ip);
+      if (!verdict.ok) {
+        throw new ScanError('turnstile', 'The security check did not pass. Reload the page and try again.', { codes: verdict.codes });
+      }
+    }
     const id = await reportIdFor(target.url);
     stream.send('progress', { phase: 'start', step: 'start', label: 'Starting the scan...', status: 'start', url: target.url });
 
@@ -80,15 +97,17 @@ export async function handleScan(request, { provider, fetchImpl, store, timeoutM
 async function readInput(request) {
   const url = new URL(request.url);
   let input = url.searchParams.get('url') ?? '';
+  let token = url.searchParams.get('token') ?? '';
   if (request.method === 'POST') {
     try {
       const body = await request.json();
       if (body && typeof body.url === 'string') input = body.url;
+      if (body && typeof body.token === 'string') token = body.token;
     } catch {
       // fall back to the query string
     }
   }
-  return input;
+  return { url: input, token };
 }
 
 /**
