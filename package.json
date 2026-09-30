@@ -6,10 +6,12 @@
   "description": "Agent experience (AX) check for websites. A lead generator for Overstory Group.",
   "scripts": {
     "dev": "astro dev",
+    "prebuild": "node scripts/validate-rubric.js",
     "build": "astro build",
     "preview": "astro preview",
     "test": "vitest run",
-    "deploy": "astro build && wrangler deploy"
+    "validate": "node scripts/validate-rubric.js",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.3.3",
