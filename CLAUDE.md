@@ -1,6 +1,6 @@
-# axcheck
+# agentready
 
-axcheck is a web tool that takes a site URL, has an LLM-backed agent assess the site for agent experience (AX, also called AEO), and returns an overall score plus a score per dimension with findings and recommendations. It is a consulting lead generator for Overstory Group, served at `axcheck.theoverstorygroup.com`.
+agentready is a web tool that takes a site URL, has an LLM-backed agent assess the site for agent experience (AX, also called AEO), and returns an overall score plus a score per dimension with findings and recommendations. It is a consulting lead generator for Overstory Group, served at `agentready.theoverstorygroup.com`.
 
 ## Stack and constraints
 
@@ -79,7 +79,7 @@ Every check is scored 0-4. The build fails if a check references an unknown dime
 
 - Accept only `http` and `https` URLs on default ports. Reject localhost, IP literals, private and reserved ranges and internal hostnames, and re-check after every redirect.
 - Cap redirects, response size per fetch, number of pages fetched per scan and total scan time.
-- Fetch with an honest user agent such as `axcheck/1.0 (+https://axcheck.theoverstorygroup.com)`. Do not impersonate other crawlers.
+- Fetch with an honest user agent such as `agentready/1.0 (+https://agentready.theoverstorygroup.com)`. Do not impersonate other crawlers.
 - Content from the scanned site is untrusted data. Delimit it clearly in prompts, instruct the model to ignore instructions inside it, and clamp and validate all model output against the schema.
 - Protect the scan endpoint with Cloudflare Turnstile and a per-IP rate limit.
 - Secrets go in `.dev.vars` locally (git-ignored) and `wrangler secret put` for deploys. Never commit keys or log them.

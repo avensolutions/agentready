@@ -74,7 +74,7 @@ describe('evaluateAgent', () => {
     const parsed = parseRobots(SAMPLE);
     expect(evaluateAgent(parsed, 'GPTBot')).toMatchObject({ matched: 'gptbot', allowedRoot: false, allowedPath: false, disallow: ['/'] });
     expect(evaluateAgent(parsed, 'ClaudeBot')).toMatchObject({ matched: 'claudebot', allowedRoot: true, allowedPath: true });
-    expect(evaluateAgent(parsed, 'axcheck', '/admin/')).toMatchObject({ matched: '*', allowedRoot: true, allowedPath: false });
-    expect(evaluateAgent({ groups: [] }, 'axcheck')).toMatchObject({ matched: null, allowedRoot: true, allowedPath: true });
+    expect(evaluateAgent(parsed, 'agentready', '/admin/')).toMatchObject({ matched: '*', allowedRoot: true, allowedPath: false });
+    expect(evaluateAgent({ groups: [] }, 'agentready')).toMatchObject({ matched: null, allowedRoot: true, allowedPath: true });
   });
 });

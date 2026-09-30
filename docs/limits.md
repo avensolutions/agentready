@@ -22,7 +22,7 @@ Sources: https://developers.cloudflare.com/workers/platform/limits/ (page dated 
 | Static asset files | 20,000 per version, 25 MiB each | 100,000 per version |
 | Response body size | no enforced limit | same |
 
-What this means for axcheck:
+What this means for agentready:
 
 - CPU time counts code execution only. Waiting on `fetch`, KV or the LLM does not count. Parsing does. Cloudflare's own guidance: "Heavier workloads that handle authentication, server-side rendering, or parse large payloads typically use 10-20 ms." Enforcement is soft (occasional overruns are tolerated, consistent overruns are terminated with error 1102), but the scan handler and the report page both need to stay under 10 ms of actual work. Measure both after they exist.
 - A subrequest is any `fetch()` plus any KV, Cache API or other binding call. Every hop in a redirect chain counts. The 50 cap covers target-site fetches, LLM calls, Turnstile verification and KV within one scan.
@@ -91,7 +91,7 @@ Three options, in order of preference:
 
 Sources: https://developers.cloudflare.com/workers/configuration/routing/custom-domains/ (page dated 2026-09-29), https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ (page dated 2026-05-29)
 
-- A custom domain such as `axcheck.theoverstorygroup.com` needs `theoverstorygroup.com` to be an active zone in the same Cloudflare account, with no existing CNAME on that hostname. Cloudflare creates the DNS record and an Advanced Certificate for the hostname at no charge. Config: `"routes": [{ "pattern": "axcheck.theoverstorygroup.com", "custom_domain": true }]`.
+- A custom domain such as `agentready.theoverstorygroup.com` needs `theoverstorygroup.com` to be an active zone in the same Cloudflare account, with no existing CNAME on that hostname. Cloudflare creates the DNS record and an Advanced Certificate for the hostname at no charge. Config: `"routes": [{ "pattern": "agentready.theoverstorygroup.com", "custom_domain": true }]`.
 - Until the zone is on Cloudflare the Worker can run on its `workers.dev` subdomain.
 - Workers Builds (git-connected deploys from GitHub or GitLab) on the free plan: 3,000 build minutes a month, 1 concurrent build, 20 minute timeout.
 
@@ -99,10 +99,10 @@ Sources: https://developers.cloudflare.com/workers/configuration/routing/custom-
 
 Sources: https://developers.cloudflare.com/workers/runtime-apis/request/, https://developers.cloudflare.com/workers/runtime-apis/fetch/, https://developers.cloudflare.com/workers/reference/how-the-cache-works/
 
-- `redirect` defaults to `follow` for a new `Request`. In `follow` mode all request headers are forwarded to the redirect target even on a different host. axcheck uses `redirect: 'manual'` and re-validates every hop, which the safety rules require anyway.
-- The runtime's follow cap is 20 redirects (from the workerd source, not documented). axcheck caps at 5 per fetch and counts each hop against the scan budget.
+- `redirect` defaults to `follow` for a new `Request`. In `follow` mode all request headers are forwarded to the redirect target even on a different host. agentready uses `redirect: 'manual'` and re-validates every hop, which the safety rules require anyway.
+- The runtime's follow cap is 20 redirects (from the workerd source, not documented). agentready caps at 5 per fetch and counts each hop against the scan budget.
 - There is no enforced response size limit, only the 128 MB isolate memory. Read bodies as streams and stop at a byte cap rather than calling `.text()` on an unknown body.
-- `cf.cacheTtl` and `cf.cacheEverything` work on GET and HEAD to any origin and go through the Worker's own zone cache, which does not replicate between data centres. Not needed for axcheck since reports are cached in KV.
+- `cf.cacheTtl` and `cf.cacheEverything` work on GET and HEAD to any origin and go through the Worker's own zone cache, which does not replicate between data centres. Not needed for agentready since reports are cached in KV.
 
 ## Browser Run (formerly Browser Rendering)
 
@@ -123,11 +123,11 @@ Sources: https://docs.astro.build/en/guides/integrations-guide/cloudflare/, http
 
 Facts that shape the code:
 
-- Default `output` is `static`. Each on-demand route opts in with `export const prerender = false`. axcheck has two: `/api/scan` and `/r/[id]`. There is no `hybrid` mode any more.
+- Default `output` is `static`. Each on-demand route opts in with `export const prerender = false`. agentready has two: `/api/scan` and `/r/[id]`. There is no `hybrid` mode any more.
 - `Astro.locals.runtime` has been removed. Bindings and vars come from `import { env } from 'cloudflare:workers'`. The execution context is `Astro.locals.cfContext` (for `waitUntil`). `Astro.request.cf` holds the `cf` object. Binding methods such as KV get and put must be called inside a request, not at module scope.
 - `astro dev` and `astro preview` run in workerd through Cloudflare's Vite plugin, so KV and other bindings are simulated locally with state under `.wrangler/state`. `.dev.vars` next to the wrangler config supplies local secrets.
 - Wrangler config from the Astro deploy guide: `main` is `@astrojs/cloudflare/entrypoints/server`, `assets.directory` is `./dist`, `assets.binding` is `ASSETS`. Cloudflare's own Astro guide still shows the older `dist/_worker.js/index.js` entry; follow the Astro docs.
-- `nodejs_compat` is on by default for compatibility dates of 2026-08-04 or later. Astro's snippet still lists it explicitly. axcheck uses a current compatibility date and does not add or remove the flag.
+- `nodejs_compat` is on by default for compatibility dates of 2026-08-04 or later. Astro's snippet still lists it explicitly. agentready uses a current compatibility date and does not add or remove the flag.
 - `import.meta.glob('../rubric/**/*.md', { query: '?raw', import: 'default', eager: true })` returns raw strings. Astro's markdown plugin skips ids carrying `?raw` (verified in the Astro source, not documented), so the rubric files are not compiled as content.
 - Streaming responses: return a `Response` whose body is a `ReadableStream`. Do not set `Content-Encoding` on an SSE response (compressed event streams can sit in the encoder buffer). Send `Content-Type: text/event-stream` and `Cache-Control: no-cache, no-transform`.
 - `HTMLRewriter` can transform a fetched `Response`; handlers fire as the body streams, so the transformed body must be consumed for them to run. It is zero-copy but still runs inside CPU time.
@@ -157,7 +157,7 @@ Rate limits:
 - The rate limits page no longer publishes per-model tables. It says limits "depend on a variety of factors (such as your usage tier) and can be viewed in Google AI Studio" at https://aistudio.google.com/rate-limit (sign-in required). Limits are per project, not per key, and the daily quota resets at midnight Pacific time. Exceeding any limit returns HTTP 429 `RESOURCE_EXHAUSTED`.
 - Tiers: Free (no billing), Tier 1 (billing linked, 250 USD cap), Tier 2 and 3 by spend history.
 - Unofficial free-tier figures reported through AI Studio in September 2026 (https://www.scriptbyai.com/gemini-api-free-tier-limits/, a forum thread of 2026-09-03 at https://discuss.ai.google.dev/t/180609, and a code change of 2026-09-19 at https://github.com/vrwarp/versicle/pull/1692): every 3.x Flash model about 20 requests a day and 5 per minute; the Flash-Lite models about 500 requests a day; 250,000 input tokens per minute for all. Flash-Lite requests per minute were not found (older Flash-Lite tables show 15). Confirm in AI Studio once the project exists and update this section.
-- Free-tier content "is used to improve our products". axcheck sends public web content and rubric text only, no user data.
+- Free-tier content "is used to improve our products". agentready sends public web content and rubric text only, no user data.
 - Batch API and grounding are not available on the free tier. Context caching is free on the 3.x Flash models but "Not available" on the Flash-Lite models on either tier.
 - Australia is on the list of available regions.
 
@@ -177,7 +177,7 @@ Request shape (REST, `generateContent`):
 - Thinking: `generationConfig.thinkingConfig.thinkingLevel` with values `minimal`, `low`, `medium`, `high`. Flash-Lite defaults to `minimal`. `gemini-3.8-flash` and `gemini-3.7-flash` reject `minimal` (use `low`). Thinking cannot be fully disabled on any 3.x model.
 - Response: `candidates[0].content.parts[0].text`, `candidates[0].finishReason` (expect `STOP`; `MAX_TOKENS`, `SAFETY`, `MALFORMED_RESPONSE` and others mean discard), `promptFeedback.blockReason` when the prompt itself was blocked, `usageMetadata` with `promptTokenCount`, `candidatesTokenCount`, `thoughtsTokenCount`.
 - Safety filters are off by default on Gemini 2.5 and 3, so benign third-party content is not filtered by the adjustable categories. Core harms are always blocked.
-- Errors: 429 for both per-minute and per-day quota, 503 when overloaded, 500 and 504 transient. Retry only 408, 429 and 5xx, with exponential backoff and jitter starting at about 1 s, capped at a small number of attempts. No `Retry-After` header is documented; observed 429 bodies carry a `google.rpc.QuotaFailure` detail whose `quotaId` says whether the limit is per minute or per day, and a `RetryInfo.retryDelay` that is not reliable for daily quotas. axcheck retries per-minute 429s a couple of times and fails the scan with a clear message on a per-day 429.
+- Errors: 429 for both per-minute and per-day quota, 503 when overloaded, 500 and 504 transient. Retry only 408, 429 and 5xx, with exponential backoff and jitter starting at about 1 s, capped at a small number of attempts. No `Retry-After` header is documented; observed 429 bodies carry a `google.rpc.QuotaFailure` detail whose `quotaId` says whether the limit is per minute or per day, and a `RetryInfo.retryDelay` that is not reliable for daily quotas. agentready retries per-minute 429s a couple of times and fails the scan with a clear message on a per-day 429.
 
 Recommended `GEMINI_MODEL`: `gemini-3.5-flash-lite`.
 

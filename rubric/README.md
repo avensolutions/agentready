@@ -1,6 +1,6 @@
 # Rubric
 
-The rubric is the whole of what axcheck measures. Dimensions, checks, weights and scoring levels live here as markdown with YAML frontmatter and are bundled into the Worker at build time. Changing a dimension, a check, a weight or a scoring level is a markdown edit. Code changes are needed only when a check needs an evidence key that no collector produces yet.
+The rubric is the whole of what agentready measures. Dimensions, checks, weights and scoring levels live here as markdown with YAML frontmatter and are bundled into the Worker at build time. Changing a dimension, a check, a weight or a scoring level is a markdown edit. Code changes are needed only when a check needs an evidence key that no collector produces yet.
 
 The build validates every file and fails on the first invalid rubric, listing all problems. Run the same check on its own with:
 

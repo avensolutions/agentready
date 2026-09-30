@@ -1,6 +1,6 @@
-# axcheck
+# agentready
 
-axcheck takes a website address, assesses the site for agent experience (AX, also called AEO) and returns an overall score with a score per dimension, findings and recommendations. It is a tool from [Overstory Group](https://theoverstorygroup.com/), served at `axcheck.theoverstorygroup.com`.
+agentready takes a website address, assesses the site for agent experience (AX, also called AEO) and returns an overall score with a score per dimension, findings and recommendations. It is a tool from [Overstory Group](https://theoverstorygroup.com/), served at `agentready.theoverstorygroup.com`.
 
 ## Stack
 

@@ -1,6 +1,6 @@
 # Deployment
 
-axcheck runs as one Cloudflare Worker on the free plan with a KV namespace, a rate limiting binding, a Turnstile widget and a Gemini API key. Everything below is run from the repository root. Wrangler is a dev dependency, so `npx wrangler` uses the pinned version.
+agentready runs as one Cloudflare Worker on the free plan with a KV namespace, a rate limiting binding, a Turnstile widget and a Gemini API key. Everything below is run from the repository root. Wrangler is a dev dependency, so `npx wrangler` uses the pinned version.
 
 ## What you need
 
@@ -27,8 +27,8 @@ Copy the `id` from the output into `wrangler.jsonc` under `kv_namespaces`, repla
 
 In the Cloudflare dashboard open Turnstile and add a widget:
 
-- Name: `axcheck`
-- Hostnames: `axcheck.theoverstorygroup.com`, plus the `workers.dev` hostname from step 5 while the custom domain is not live
+- Name: `agentready`
+- Hostnames: `agentready.theoverstorygroup.com`, plus the `workers.dev` hostname from step 5 while the custom domain is not live
 - Widget mode: Managed
 
 Turnstile gives a site key (public) and a secret key.
@@ -56,7 +56,7 @@ npx wrangler secret put GEMINI_API_KEY
 npm run deploy
 ```
 
-This validates the rubric, builds, and runs `wrangler deploy`. The first deploy prints the Worker's `workers.dev` address, for example `https://axcheck.<account>.workers.dev`. Open it and run a scan.
+This validates the rubric, builds, and runs `wrangler deploy`. The first deploy prints the Worker's `workers.dev` address, for example `https://agentready.<account>.workers.dev`. Open it and run a scan.
 
 If the deploy is rejected because the rate limiting binding is not available on the plan, remove the `ratelimits` block from `wrangler.jsonc` and deploy again. The code treats a missing binding as no limit.
 
@@ -69,7 +69,7 @@ If the deploy is rejected because the rate limiting binding is not available on 
 
 ## 7. Custom domain
 
-`axcheck.theoverstorygroup.com` requires `theoverstorygroup.com` to be a zone in the same Cloudflare account, with no existing DNS record for the `axcheck` name. Then either:
+`agentready.theoverstorygroup.com` requires `theoverstorygroup.com` to be a zone in the same Cloudflare account, with no existing DNS record for the `agentready` name. Then either:
 
 - uncomment the `routes` entry in `wrangler.jsonc` and run `npm run deploy` again, or
 - in the dashboard open the Worker, then Settings, then Domains and Routes, and add the custom domain.

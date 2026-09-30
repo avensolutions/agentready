@@ -3,10 +3,10 @@
  * header and footer stay in step.
  */
 export const site = {
-  name: 'axcheck',
-  url: 'https://axcheck.theoverstorygroup.com',
+  name: 'agentready',
+  url: 'https://agentready.theoverstorygroup.com',
   description:
-    'axcheck assesses how well a website works for AI agents and returns a scored report with findings and recommendations. By Overstory Group.',
+    'agentready assesses how well a website works for AI agents and returns a scored report with findings and recommendations. By Overstory Group.',
   parent: {
     name: 'Overstory Group',
     url: 'https://theoverstorygroup.com/',

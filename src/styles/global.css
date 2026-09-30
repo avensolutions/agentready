@@ -1,7 +1,7 @@
 @import './tokens.css';
 
 /* ------------------------------------------------------------------
-   axcheck base styles. Shared chrome only: reset, type, buttons,
+   agentready base styles. Shared chrome only: reset, type, buttons,
    fields, nav, footer. Page-specific styles live in each page.
    Mirrors the parent site's global.css so the tool reads as part of
    theoverstorygroup.com.

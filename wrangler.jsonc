@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "axcheck",
+  "name": "agentready",
   "main": "@astrojs/cloudflare/entrypoints/server",
   // The highest date the workerd bundled with @cloudflare/vitest-pool-workers
   // supports. Tests and production share it so behaviour cannot drift; bump
@@ -39,5 +39,5 @@
     }
   ]
   // Custom domain, once theoverstorygroup.com is a zone in this account:
-  // "routes": [{ "pattern": "axcheck.theoverstorygroup.com", "custom_domain": true }]
+  // "routes": [{ "pattern": "agentready.theoverstorygroup.com", "custom_domain": true }]
 }

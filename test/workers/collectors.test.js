@@ -125,8 +125,8 @@ describe('collectEvidence', () => {
     expect(progress.indexOf('done:home')).toBeLessThan(progress.indexOf('start:pages'));
   });
 
-  it('stops when robots.txt disallows axcheck', async () => {
-    const site = fakeSite({ ...GOOD_SITE, [`${ORIGIN}/robots.txt`]: { type: 'text/plain', body: 'User-agent: axcheck\nDisallow: /\n' } });
+  it('stops when robots.txt disallows agentready', async () => {
+    const site = fakeSite({ ...GOOD_SITE, [`${ORIGIN}/robots.txt`]: { type: 'text/plain', body: 'User-agent: agentready\nDisallow: /\n' } });
     await expect(collectEvidence({ url: `${ORIGIN}/`, fetchImpl: site.impl })).rejects.toMatchObject({ code: 'robots' });
     expect(site.calls.length).toBe(1);
   });

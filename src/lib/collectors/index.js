@@ -102,7 +102,7 @@ export async function collectEvidence({ url, fetchImpl, onProgress = () => {}, b
       }),
     );
     if (ctx.robots && !ctx.robots.self.allowedPath) {
-      throw new ScanError('robots', "The site's robots.txt does not allow axcheck to read this page, so it was not scanned.", {
+      throw new ScanError('robots', "The site's robots.txt does not allow agentready to read this page, so it was not scanned.", {
         url,
         matched: ctx.robots.self.matched,
         disallow: ctx.robots.self.disallow,

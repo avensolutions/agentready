@@ -9,11 +9,11 @@ describe('createTurnstileVerifier', () => {
     /** @type {typeof fetch} */
     const impl = async (input, init) => {
       calls.push({ url: String(input), body: /** @type {URLSearchParams} */ (init?.body) });
-      return Response.json({ success: true, hostname: 'axcheck.theoverstorygroup.com' });
+      return Response.json({ success: true, hostname: 'agentready.theoverstorygroup.com' });
     };
     const verify = createTurnstileVerifier({ secret: 's3cret', fetchImpl: impl });
     const verdict = await verify('tok', '203.0.113.9');
-    expect(verdict).toEqual({ ok: true, codes: [], hostname: 'axcheck.theoverstorygroup.com' });
+    expect(verdict).toEqual({ ok: true, codes: [], hostname: 'agentready.theoverstorygroup.com' });
     expect(calls[0].url).toBe(SITEVERIFY_URL);
     expect(calls[0].body.get('secret')).toBe('s3cret');
     expect(calls[0].body.get('response')).toBe('tok');

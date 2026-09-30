@@ -7,7 +7,7 @@ import cloudflare from '@astrojs/cloudflare';
 // no Images binding is needed. Sessions are off so the adapter does not
 // require a SESSION KV namespace.
 export default defineConfig({
-  site: 'https://axcheck.theoverstorygroup.com',
+  site: 'https://agentready.theoverstorygroup.com',
   session: false,
   adapter: cloudflare({
     imageService: 'passthrough',

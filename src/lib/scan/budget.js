@@ -27,7 +27,7 @@ export const BUDGET = Object.freeze({
   maxLlmCalls: 8,
   /** Whole scan, after which it is failed with a clear message. */
   scanTimeoutMs: 90_000,
-  userAgent: 'axcheck/1.0 (+https://axcheck.theoverstorygroup.com)',
+  userAgent: 'agentready/1.0 (+https://agentready.theoverstorygroup.com)',
 });
 
 /** Subrequests a scan can make in the worst case, for the tests. */

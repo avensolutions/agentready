@@ -44,7 +44,7 @@ describe('createFetcher', () => {
     expect(res.bytes).toBe(9);
     expect(res.truncated).toBe(false);
     const sent = new Headers(site.calls[0].init.headers);
-    expect(sent.get('user-agent')).toMatch(/^axcheck\/1\.0 \(\+https:\/\/axcheck\.theoverstorygroup\.com\)$/);
+    expect(sent.get('user-agent')).toMatch(/^agentready\/1\.0 \(\+https:\/\/agentready\.theoverstorygroup\.com\)$/);
     expect(site.calls[0].init.redirect).toBe('manual');
     expect(fetcher.used).toBe(1);
   });

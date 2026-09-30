@@ -13,8 +13,8 @@ export const AI_AGENTS = Object.freeze({
   user: ['ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'PerplexityBot', 'Perplexity-User', 'DuckAssistBot', 'Meta-ExternalFetcher', 'MistralAI-User'],
 });
 
-/** The user agent token axcheck itself honours. */
-export const SELF_AGENT = 'axcheck';
+/** The user agent token agentready itself honours. */
+export const SELF_AGENT = 'agentready';
 
 /**
  * @typedef {Object} RobotsGroup

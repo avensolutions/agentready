@@ -26,7 +26,7 @@ describe('handleScan', () => {
   it('streams progress, one check event per check, and done with a stable id', async () => {
     /** @type {any[]} */
     const stored = [];
-    const events = await run(new Request(`https://axcheck.test/api/scan?url=${encodeURIComponent('acme.example.com')}`), { store: { get: async () => null, put: async (r) => void stored.push(r) } });
+    const events = await run(new Request(`https://agentready.test/api/scan?url=${encodeURIComponent('acme.example.com')}`), { store: { get: async () => null, put: async (r) => void stored.push(r) } });
     const names = events.map((e) => e.event);
     expect(names[0]).toBe('progress');
     expect(names[names.length - 1]).toBe('done');
@@ -64,7 +64,7 @@ describe('handleScan', () => {
     const fresh = { id, version: 1, url: `${ORIGIN}/`, scannedAt: '2026-09-29T12:00:00.000Z', rubricHash: await rubricHash(), overall: 61, band: { id: 'fair', label: 'Fair' }, dimensions: [], stats: {} };
     const store = { ttlDays: 7, get: async () => fresh, put: async (r) => void puts.push(r) };
 
-    const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store, now });
+    const events = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store, now });
     expect(events.map((e) => e.event)).toEqual(['progress', 'done']);
     expect(events[1].data).toMatchObject({ id, overall: 61, cached: true, scannedAt: '2026-09-29T12:00:00.000Z' });
     expect(fetched).toBe(0);
@@ -72,28 +72,28 @@ describe('handleScan', () => {
 
     // stale: scored against a different rubric
     const stale = { ...store, get: async () => ({ ...fresh, rubricHash: 'old' }) };
-    const again = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store: stale, now });
+    const again = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store: stale, now });
     expect(again[again.length - 1]).toMatchObject({ event: 'done', data: { id, cached: false } });
     expect(fetched).toBeGreaterThan(0);
     expect(puts.length).toBe(1);
   });
 
   it('accepts a POST body', async () => {
-    const events = await run(new Request('https://axcheck.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/` }), headers: { 'content-type': 'application/json' } }));
+    const events = await run(new Request('https://agentready.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/` }), headers: { 'content-type': 'application/json' } }));
     expect(events[events.length - 1].event).toBe('done');
   });
 
   it('reports an invalid address as an error event without fetching', async () => {
     let fetched = 0;
-    const events = await run(new Request('https://axcheck.test/api/scan?url=http://127.0.0.1/'), { fetchImpl: async () => (fetched += 1, new Response('')) });
+    const events = await run(new Request('https://agentready.test/api/scan?url=http://127.0.0.1/'), { fetchImpl: async () => (fetched += 1, new Response('')) });
     expect(events).toEqual([{ event: 'error', data: { code: 'invalid-url', reason: 'ip', message: 'IP addresses cannot be checked. Use the site name.' } }]);
     expect(fetched).toBe(0);
-    const empty = await run(new Request('https://axcheck.test/api/scan'));
+    const empty = await run(new Request('https://agentready.test/api/scan'));
     expect(empty[0]).toMatchObject({ event: 'error', data: { code: 'invalid-url' } });
   });
 
   it('reports pipeline failures with their code and message', async () => {
-    const down = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), {
+    const down = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), {
       fetchImpl: async () => {
         throw new TypeError('ENOTFOUND');
       },
@@ -102,7 +102,7 @@ describe('handleScan', () => {
 
     /** @type {import('../../src/lib/llm/index.js').LlmProvider} */
     const exhausted = { name: 'x', model: 'x', async generate() { throw new LlmError('quota', 'day'); } };
-    const quota = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { provider: exhausted });
+    const quota = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { provider: exhausted });
     expect(quota[quota.length - 1]).toMatchObject({ event: 'error', data: { code: 'llm-quota' } });
     expect(quota.some((e) => e.event === 'progress' && /** @type {any} */ (e.data).phase === 'collect')).toBe(true);
   });
@@ -110,7 +110,7 @@ describe('handleScan', () => {
   it('applies the rate limiter before anything else', async () => {
     let fetched = 0;
     let verified = 0;
-    const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`, { headers: { 'cf-connecting-ip': '203.0.113.9' } }), {
+    const events = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`, { headers: { 'cf-connecting-ip': '203.0.113.9' } }), {
       fetchImpl: async () => (fetched += 1, new Response('')),
       limiter: { allow: async (key) => (expect(key).toBe('203.0.113.9'), false) },
       verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }),
@@ -124,23 +124,23 @@ describe('handleScan', () => {
     /** @type {any[]} */
     const seen = [];
     const verifier = async (token, ip) => (seen.push([token, ip]), { ok: token === 'good', codes: token === 'good' ? [] : ['invalid-input-response'] });
-    const bad = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/&token=bad`), { verifyTurnstile: verifier });
+    const bad = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/&token=bad`), { verifyTurnstile: verifier });
     expect(bad).toEqual([{ event: 'error', data: { code: 'turnstile', message: expect.stringContaining('security check') } }]);
-    const good = await run(new Request('https://axcheck.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/`, token: 'good' }), headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.9' } }), { verifyTurnstile: verifier });
+    const good = await run(new Request('https://agentready.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/`, token: 'good' }), headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.9' } }), { verifyTurnstile: verifier });
     expect(good[good.length - 1].event).toBe('done');
     expect(seen).toEqual([['bad', undefined], ['good', '203.0.113.9']]);
   });
 
   it('validates the address before spending a Turnstile verification', async () => {
     let verified = 0;
-    const events = await run(new Request('https://axcheck.test/api/scan?url=ftp://x.example.com/&token=t'), { verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }) });
+    const events = await run(new Request('https://agentready.test/api/scan?url=ftp://x.example.com/&token=t'), { verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }) });
     expect(events[0]).toMatchObject({ event: 'error', data: { code: 'invalid-url' } });
     expect(verified).toBe(0);
   });
 
   it('times out a scan that runs too long', async () => {
     const slow = createMockProvider({ delayMs: 200 });
-    const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { provider: slow, timeoutMs: 100 });
+    const events = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { provider: slow, timeoutMs: 100 });
     expect(events[events.length - 1]).toMatchObject({ event: 'error', data: { code: 'timeout' } });
   });
 
