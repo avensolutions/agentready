@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { createProviderFromEnv } from '../../lib/llm/index.js';
 import { handleScan } from '../../lib/scan/handler.js';
 import { createEventStream } from '../../lib/scan/sse.js';
+import { createReportStore, ttlDaysFromEnv } from '../../lib/scan/store.js';
 
 export const prerender = false;
 
@@ -17,9 +18,10 @@ export async function POST({ request }) {
 
 /** @param {Request} request */
 async function scan(request) {
+  const vars = /** @type {Record<string, string | undefined>} */ (/** @type {unknown} */ (env));
   let provider;
   try {
-    provider = createProviderFromEnv(/** @type {Record<string, string | undefined>} */ (env));
+    provider = createProviderFromEnv(vars);
   } catch (err) {
     // misconfiguration is reported on the stream so the page shows a message
     const stream = createEventStream({ keepAliveMs: 0 });
@@ -28,5 +30,6 @@ async function scan(request) {
     console.error('scan provider configuration', err);
     return stream.response;
   }
-  return handleScan(request, { provider });
+  const store = createReportStore(/** @type {KVNamespace} */ (/** @type {unknown} */ (env.REPORTS)), { ttlDays: ttlDaysFromEnv(vars) });
+  return handleScan(request, { provider, store });
 }

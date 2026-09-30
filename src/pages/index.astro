@@ -255,10 +255,10 @@ const support =
     if (score) score.textContent = c.score === null ? 'not assessed' : `${c.score} / 4`;
   }
 
-  /** @param {{ id: string, overall: number | null, band: { label: string }, url: string }} d */
+  /** @param {{ id: string, overall: number | null, band: { label: string }, url: string, cached?: boolean }} d */
   function onDone(d) {
     status.classList.add('is-finished');
-    setLabel('Scan complete.');
+    setLabel(d.cached ? 'A recent report for this site exists.' : 'Scan complete.');
     result.hidden = false;
     result.classList.remove('is-error');
     result.replaceChildren();
@@ -267,10 +267,13 @@ const support =
     line.textContent = d.overall === null ? 'The site could not be scored.' : `Overall score ${d.overall} out of 100. ${d.band.label}.`;
     const link = document.createElement('a');
     link.className = 'btn btn-solid';
-    link.href = `/r/${encodeURIComponent(d.id)}`;
+    const href = `/r/${encodeURIComponent(d.id)}`;
+    link.href = href;
     link.textContent = 'View the report';
     result.append(line, link);
     finish();
+    // the report page is the destination; the link above stays as a fallback
+    window.location.assign(href);
   }
 
   /** @param {{ code: string, message: string }} e */

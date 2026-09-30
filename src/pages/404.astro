@@ -1,0 +1,24 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Page not found" description="That page does not exist." noindex={true}>
+  <section class="not-found">
+    <p class="label">404</p>
+    <h1>Page not found</h1>
+    <p class="support">There is nothing at this address.</p>
+    <a class="btn btn-solid" href="/">Check a site</a>
+  </section>
+</Base>
+
+<style>
+  .not-found {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 96px var(--h-pad) var(--section-y);
+    text-align: center;
+  }
+  .not-found .label { display: block; margin-bottom: 22px; }
+  .not-found h1 { font-size: var(--text-h1); }
+  .not-found .support { margin: 18px auto 0; }
+  .not-found .btn { margin-top: 32px; }
+</style>

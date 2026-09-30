@@ -1,0 +1,295 @@
+---
+import { env } from 'cloudflare:workers';
+import DimensionSection from '../../components/report/DimensionSection.astro';
+import ScoreBar from '../../components/report/ScoreBar.astro';
+import Base from '../../layouts/Base.astro';
+import { formatDateTime, formatDuration, hostOf } from '../../lib/format.js';
+import { isReportId } from '../../lib/scan/report-id.js';
+import { createReportStore } from '../../lib/scan/store.js';
+import { site } from '../../lib/site.js';
+
+export const prerender = false;
+
+const { id } = Astro.params;
+/** @type {import('../../lib/scan/store.js').StoredReport | null} */
+let report = null;
+if (id && isReportId(id)) {
+  report = await createReportStore(/** @type {KVNamespace} */ (/** @type {unknown} */ (env.REPORTS))).get(id);
+}
+if (!report) {
+  Astro.response.status = 404;
+  Astro.response.headers.set('cache-control', 'no-store');
+} else {
+  Astro.response.headers.set('cache-control', 'private, max-age=300');
+}
+
+const host = report ? hostOf(report.url) : '';
+const scanned = report ? formatDateTime(report.scannedAt) : '';
+const duration = report ? formatDuration(report.stats.elapsedMs) : '';
+const checkAgainHref = report ? `/?url=${encodeURIComponent(report.url)}` : '/';
+const shareUrl = new URL(Astro.url.pathname, site.url).toString();
+---
+<Base
+  title={report ? `${host} report` : 'Report not found'}
+  description={report ? `Agent experience report for ${host}: overall score ${report.overall ?? 'not assessed'} out of 100.` : 'This report is not available.'}
+  noindex={true}
+>
+  {report ? (
+    <article class="report" data-report-id={report.id}>
+      <header class="report-head">
+        <div class="report-wrap">
+          <p class="label">Agent experience report</p>
+          <h1>{host}</h1>
+          <p class="report-meta">
+            <a href={report.url} rel="noopener nofollow">{report.url}</a>
+            <span>Scanned {scanned}</span>
+          </p>
+
+          <div class="overall">
+            <div class="overall-figure">
+              <span class="value">{report.overall === null ? '-' : report.overall}</span>
+              <span class="of">out of 100</span>
+            </div>
+            <div class="overall-detail">
+              <p class="overall-band">{report.band.label}</p>
+              <ScoreBar score={report.overall} band={report.band} />
+              <p class="overall-note">
+                The overall score combines the five dimension scores by weight. Each dimension is the weighted mean of its checks, each scored 0 to 4 against the rubric.
+              </p>
+            </div>
+          </div>
+
+          <ol class="summary" aria-label="Dimension scores">
+            {report.dimensions.map((d) => (
+              <li>
+                <a href={`#dimension-${d.id}`}>{d.title}</a>
+                <span class="summary-score">{d.score === null ? 'Not assessed' : `${d.score} / 100`}</span>
+                <ScoreBar score={d.score} band={d.band} />
+              </li>
+            ))}
+          </ol>
+
+          <div class="report-actions">
+            <button class="btn btn-quiet btn-sm" type="button" id="print-report">Download PDF</button>
+            <button class="btn btn-quiet btn-sm copy-link" type="button" data-copy={shareUrl}>Copy link</button>
+            <a class="btn btn-quiet btn-sm" href="/">Check another site</a>
+          </div>
+        </div>
+      </header>
+
+      <div class="report-wrap report-body">
+        {report.dimensions.map((d, i) => <DimensionSection dimension={d} index={i + 1} />)}
+      </div>
+
+      <footer class="report-wrap report-foot">
+        <h2>About this scan</h2>
+        <dl>
+          <div><dt>Address scanned</dt><dd><a href={report.url} rel="noopener nofollow">{report.url}</a></dd></div>
+          <div><dt>Scanned</dt><dd>{scanned}</dd></div>
+          <div><dt>Pages read</dt><dd>{report.stats.sampledPages.length > 0 ? `The page above and ${report.stats.sampledPages.length} linked ${report.stats.sampledPages.length === 1 ? 'page' : 'pages'}: ${report.stats.sampledPages.map((p) => new URL(p).pathname).join(', ')}` : 'The page above only'}</dd></div>
+          <div><dt>Requests to the site</dt><dd>{report.stats.fetches}</dd></div>
+          <div><dt>Assessor</dt><dd>{report.model}</dd></div>
+          <div><dt>Rubric</dt><dd><code>{report.rubricHash.slice(0, 12)}</code></dd></div>
+          <div><dt>Scan time</dt><dd>{duration}</dd></div>
+        </dl>
+        <p class="report-cache">
+          Reports are kept for a limited time and a repeat check of the same address within that time shows the stored report. <a href={checkAgainHref}>Check {host} again</a>.
+        </p>
+      </footer>
+
+      <div class="conversation-wrap">
+        <section class="conversation">
+          <h2>Want help acting on this?</h2>
+          <p class="support">
+            Overstory Group advises boards, CEOs and executive teams on the strategy, organisation and capability that create advantage in the age of artificial intelligence. If you want help turning this report into a plan, start a conversation.
+          </p>
+          <a class="btn btn-light" href={site.parent.contactUrl}>Start a conversation</a>
+        </section>
+      </div>
+    </article>
+  ) : (
+    <section class="not-found">
+      <p class="label">Report</p>
+      <h1>Report not found</h1>
+      <p class="support">This report does not exist or has expired. Reports are kept for a limited time after a scan.</p>
+      <a class="btn btn-solid" href="/">Check a site</a>
+    </section>
+  )}
+</Base>
+
+<style>
+  .report-wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 var(--h-pad);
+  }
+  .report-head { padding: 72px 0 48px; }
+  .report-head .label { display: block; margin-bottom: 22px; }
+  .report-head h1 {
+    font-size: var(--text-h1);
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+  }
+  .report-meta {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 24px;
+    max-width: none;
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+  }
+  .report-meta a { color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+  .report-meta a:hover { text-decoration: underline; }
+
+  .overall {
+    margin-top: 40px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 24px 48px;
+    align-items: center;
+    padding: 36px 40px;
+    background: var(--surface);
+    border-radius: var(--r-xl);
+  }
+  .overall-figure { display: flex; flex-direction: column; align-items: flex-start; }
+  .overall-figure .value {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(64px, 8vw, 104px);
+    letter-spacing: -0.04em;
+    line-height: 0.9;
+  }
+  .overall-figure .of {
+    margin-top: 10px;
+    font-size: var(--text-label);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .overall-band {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-h3);
+    margin-bottom: 12px;
+  }
+  .overall-note {
+    margin-top: 14px;
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+    max-width: 56ch;
+  }
+
+  .summary {
+    list-style: none;
+    margin: 32px 0 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .summary li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 24px;
+    align-items: baseline;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .summary li > :global(.score-bar) { grid-column: 1 / -1; }
+  .summary a { text-decoration: none; font-weight: 500; }
+  .summary a:hover { text-decoration: underline; }
+  .summary-score {
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .report-actions {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .report-body { padding-bottom: 32px; }
+
+  .report-foot {
+    padding-top: 56px;
+    padding-bottom: 24px;
+  }
+  .report-foot h2 { font-size: clamp(22px, 2.2vw, 28px); margin-bottom: 20px; }
+  .report-foot dl {
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .report-foot dl > div {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 8px 24px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--hairline);
+    font-size: var(--text-small);
+  }
+  .report-foot dt { color: var(--ink-muted); }
+  .report-foot dd { overflow-wrap: anywhere; }
+  .report-foot dd a { color: var(--ink); }
+  .report-foot code { font-size: var(--text-fine); }
+  .report-cache {
+    margin-top: 20px;
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+    max-width: 70ch;
+  }
+  .report-cache a { color: var(--ink); }
+
+  .conversation-wrap { max-width: var(--max-w); margin: 0 auto; padding: 48px var(--h-pad) var(--section-y); }
+  .conversation {
+    background: var(--ink);
+    color: var(--parchment);
+    border-radius: var(--r-xl);
+    padding: 88px 56px;
+    text-align: center;
+  }
+  .conversation h2 { font-size: var(--text-h2); max-width: 20ch; margin: 0 auto; text-wrap: balance; }
+  .conversation .support { color: var(--parchment-soft); font-size: var(--text-support); max-width: 56ch; margin: 24px auto 0; text-wrap: balance; }
+  .conversation .btn-light { margin-top: 40px; }
+
+  .not-found {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding: 96px var(--h-pad) var(--section-y);
+    text-align: center;
+  }
+  .not-found .label { display: block; margin-bottom: 22px; }
+  .not-found h1 { font-size: var(--text-h1); }
+  .not-found .support { margin: 18px auto 0; }
+  .not-found .btn { margin-top: 32px; }
+
+  @media (max-width: 768px) {
+    .report-head { padding-top: 48px; }
+    .overall { grid-template-columns: 1fr; padding: 28px 24px; border-radius: var(--r-lg); }
+    .report-foot dl > div { grid-template-columns: 1fr; gap: 4px; }
+    .conversation { padding: 56px 24px; border-radius: var(--r-lg); }
+  }
+</style>
+
+<script>
+  const print = document.getElementById('print-report');
+  if (print) print.addEventListener('click', () => window.print());
+
+  document.querySelectorAll('.copy-link').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const value = btn.getAttribute('data-copy') ?? window.location.href;
+      try {
+        await navigator.clipboard.writeText(value);
+        const original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => {
+          btn.textContent = original;
+        }, 1600);
+      } catch {
+        window.prompt('Copy this link', value);
+      }
+    });
+  });
+</script>

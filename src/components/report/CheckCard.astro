@@ -1,0 +1,100 @@
+---
+/**
+ * One check: title, score out of 4, rationale, evidence quotes and the
+ * recommendation.
+ * @typedef {Object} Props
+ * @property {import('../../lib/scan/run.js').ReportCheck} check
+ */
+const { check } = Astro.props;
+const assessed = check.score !== null;
+const dots = [0, 1, 2, 3];
+---
+<article class="check" id={`check-${check.id}`}>
+  <header class="check-head">
+    <h3>{check.title}</h3>
+    <div class="check-score" aria-label={assessed ? `${check.score} out of 4` : 'Not assessed'}>
+      <span class="dots" aria-hidden="true">
+        {dots.map((i) => <span class:list={['dot', { on: assessed && check.score !== null && i < check.score }]}></span>)}
+      </span>
+      <span class="value">{assessed ? `${check.score} / 4` : 'Not assessed'}</span>
+    </div>
+  </header>
+  <p class="rationale">{check.rationale}</p>
+  {check.evidence.length > 0 && (
+    <ul class="evidence" aria-label="Evidence">
+      {check.evidence.map((quote) => <li><q>{quote}</q></li>)}
+    </ul>
+  )}
+  {check.recommendation && (
+    <p class="recommendation"><span class="label">Recommendation</span> {check.recommendation}</p>
+  )}
+</article>
+
+<style>
+  .check {
+    padding: 26px 0;
+    border-top: 1px solid var(--hairline);
+  }
+  .check-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px 24px;
+    margin-bottom: 12px;
+  }
+  .check h3 {
+    font-size: clamp(18px, 1.6vw, 21px);
+    letter-spacing: -0.01em;
+  }
+  .check-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--text-small);
+    font-weight: 500;
+    color: var(--ink-muted);
+    white-space: nowrap;
+  }
+  .dots { display: inline-flex; gap: 4px; }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--surface-2);
+  }
+  .dot.on { background: var(--olive); }
+  .value { font-variant-numeric: tabular-nums; }
+
+  .rationale {
+    max-width: 70ch;
+    color: var(--ink);
+  }
+  .evidence {
+    list-style: none;
+    margin: 14px 0 0;
+    display: grid;
+    gap: 8px;
+  }
+  .evidence li {
+    padding: 10px 16px;
+    border-left: 2px solid var(--sage);
+    background: var(--surface);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    font-size: var(--text-small);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
+  }
+  .evidence q { quotes: '"' '"'; }
+  .recommendation {
+    margin-top: 16px;
+    max-width: 70ch;
+    color: var(--ink);
+  }
+  .recommendation .label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--olive);
+  }
+</style>

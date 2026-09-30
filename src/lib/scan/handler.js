@@ -1,10 +1,11 @@
-import { rubric } from '../rubric/index.js';
+import { rubric, rubricHash } from '../rubric/index.js';
 import { UrlError, normaliseTarget } from '../safety/url.js';
 import { BUDGET } from './budget.js';
 import { ScanError } from './errors.js';
 import { reportIdFor } from './report-id.js';
 import { runScan } from './run.js';
 import { createEventStream } from './sse.js';
+import { DEFAULT_TTL_DAYS, isFresh } from './store.js';
 
 /**
  * The scan request handler behind /api/scan. Always answers with an event
@@ -17,7 +18,9 @@ import { createEventStream } from './sse.js';
 
 /**
  * @typedef {Object} ReportStore
- * @property {(report: import('./run.js').Report & { id: string }) => Promise<void>} put
+ * @property {number} [ttlDays]
+ * @property {(id: string) => Promise<import('./store.js').StoredReport | null>} get
+ * @property {(report: import('./store.js').StoredReport) => Promise<void>} put
  */
 
 /**
@@ -39,6 +42,16 @@ export async function handleScan(request, { provider, fetchImpl, store, timeoutM
     const target = normaliseTarget(input);
     const id = await reportIdFor(target.url);
     stream.send('progress', { phase: 'start', step: 'start', label: 'Starting the scan...', status: 'start', url: target.url });
+
+    // a fresh stored report for this URL is served instead of spending quota
+    if (store) {
+      const existing = await store.get(id);
+      if (isFresh(existing, { rubricHash: await rubricHash(), ttlDays: store.ttlDays ?? DEFAULT_TTL_DAYS, now: now() }) && existing) {
+        stream.send('done', { id, url: existing.url, overall: existing.overall, band: existing.band, scannedAt: existing.scannedAt, cached: true });
+        return;
+      }
+    }
+
     const report = await runScan({
       url: target.url,
       provider,

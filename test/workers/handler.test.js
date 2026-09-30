@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LlmError, createMockProvider } from '../../src/lib/llm/index.js';
-import { rubric } from '../../src/lib/rubric/index.js';
+import { rubric, rubricHash } from '../../src/lib/rubric/index.js';
 import { errorPayload, handleScan } from '../../src/lib/scan/handler.js';
 import { reportIdFor } from '../../src/lib/scan/report-id.js';
 import { parseEventStream } from '../../src/lib/scan/sse.js';
@@ -26,7 +26,7 @@ describe('handleScan', () => {
   it('streams progress, one check event per check, and done with a stable id', async () => {
     /** @type {any[]} */
     const stored = [];
-    const events = await run(new Request(`https://axcheck.test/api/scan?url=${encodeURIComponent('acme.example.com')}`), { store: { put: async (r) => void stored.push(r) } });
+    const events = await run(new Request(`https://axcheck.test/api/scan?url=${encodeURIComponent('acme.example.com')}`), { store: { get: async () => null, put: async (r) => void stored.push(r) } });
     const names = events.map((e) => e.event);
     expect(names[0]).toBe('progress');
     expect(names[names.length - 1]).toBe('done');
@@ -48,6 +48,34 @@ describe('handleScan', () => {
     expect(stored.length).toBe(1);
     expect(stored[0].id).toBe(done.id);
     expect(stored[0].dimensions.length).toBe(rubric.dimensions.length);
+  });
+
+  it('serves a fresh stored report without scanning, and rescans a stale one', async () => {
+    const id = await reportIdFor(`${ORIGIN}/`);
+    let fetched = 0;
+    /** @type {typeof fetch} */
+    const counting = async (input, init) => {
+      fetched += 1;
+      return site(input, init);
+    };
+    /** @type {any[]} */
+    const puts = [];
+    const now = () => new Date('2026-09-30T12:00:00.000Z');
+    const fresh = { id, version: 1, url: `${ORIGIN}/`, scannedAt: '2026-09-29T12:00:00.000Z', rubricHash: await rubricHash(), overall: 61, band: { id: 'fair', label: 'Fair' }, dimensions: [], stats: {} };
+    const store = { ttlDays: 7, get: async () => fresh, put: async (r) => void puts.push(r) };
+
+    const events = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store, now });
+    expect(events.map((e) => e.event)).toEqual(['progress', 'done']);
+    expect(events[1].data).toMatchObject({ id, overall: 61, cached: true, scannedAt: '2026-09-29T12:00:00.000Z' });
+    expect(fetched).toBe(0);
+    expect(puts).toEqual([]);
+
+    // stale: scored against a different rubric
+    const stale = { ...store, get: async () => ({ ...fresh, rubricHash: 'old' }) };
+    const again = await run(new Request(`https://axcheck.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store: stale, now });
+    expect(again[again.length - 1]).toMatchObject({ event: 'done', data: { id, cached: false } });
+    expect(fetched).toBeGreaterThan(0);
+    expect(puts.length).toBe(1);
   });
 
   it('accepts a POST body', async () => {
