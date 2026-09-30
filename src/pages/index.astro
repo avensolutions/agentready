@@ -76,6 +76,12 @@ const support =
   .scan-form .field { flex: 1; min-width: 0; }
   .scan-form .btn { flex: none; }
 
+  @media (max-width: 768px) {
+    .landing { padding-top: 56px; }
+    .scan-form { flex-direction: column; }
+  }
+</style>
+<style is:global>
   /* ---------- scanning state ---------- */
 
   .scan-status {
@@ -168,11 +174,10 @@ const support =
   .scan-result.is-error p { color: var(--ink); }
 
   @media (max-width: 768px) {
-    .landing { padding-top: 56px; }
-    .scan-form { flex-direction: column; }
     .scan-status { margin-top: 32px; }
   }
 </style>
+
 
 <script>
   // Landing page behaviour: submit or a shared ?url= link starts a scan, the
