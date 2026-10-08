@@ -42,16 +42,17 @@ describe('handleScan', () => {
     expect(typeof check.score).toBe('number');
 
     const done = /** @type {any} */ (events[events.length - 1].data);
-    expect(done.id).toBe(await reportIdFor(`${ORIGIN}/`));
-    expect(done).toMatchObject({ url: `${ORIGIN}/`, cached: false });
+    expect(done.id).toBe(await reportIdFor(`${ORIGIN}/`, 'general'));
+    expect(done).toMatchObject({ url: `${ORIGIN}/` });
+    expect(done).not.toHaveProperty('cached');
     expect(typeof done.overall).toBe('number');
     expect(stored.length).toBe(1);
     expect(stored[0].id).toBe(done.id);
     expect(stored[0].dimensions.length).toBe(rubric.dimensions.length);
   });
 
-  it('serves a fresh stored report without scanning, and rescans a stale one', async () => {
-    const id = await reportIdFor(`${ORIGIN}/`);
+  it('runs a live scan even when a stored report for the address exists, and replaces it', async () => {
+    const id = await reportIdFor(`${ORIGIN}/`, 'general');
     let fetched = 0;
     /** @type {typeof fetch} */
     const counting = async (input, init) => {
@@ -61,21 +62,38 @@ describe('handleScan', () => {
     /** @type {any[]} */
     const puts = [];
     const now = () => new Date('2026-09-30T12:00:00.000Z');
-    const fresh = { id, version: 1, url: `${ORIGIN}/`, scannedAt: '2026-09-29T12:00:00.000Z', rubricHash: await rubricHash(), overall: 61, band: { id: 'fair', label: 'Fair' }, dimensions: [], stats: {} };
-    const store = { ttlDays: 7, get: async () => fresh, put: async (r) => void puts.push(r) };
+    const existing = { id, version: 1, url: `${ORIGIN}/`, scannedAt: '2026-09-29T12:00:00.000Z', rubricHash: await rubricHash(), overall: 61, band: { id: 'fair', label: 'Fair' }, dimensions: [], stats: {} };
+    const store = { get: async () => existing, put: async (r) => void puts.push(r) };
 
     const events = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store, now });
-    expect(events.map((e) => e.event)).toEqual(['progress', 'done']);
-    expect(events[1].data).toMatchObject({ id, overall: 61, cached: true, scannedAt: '2026-09-29T12:00:00.000Z' });
-    expect(fetched).toBe(0);
-    expect(puts).toEqual([]);
-
-    // stale: scored against a different rubric
-    const stale = { ...store, get: async () => ({ ...fresh, rubricHash: 'old' }) };
-    const again = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { fetchImpl: counting, store: stale, now });
-    expect(again[again.length - 1]).toMatchObject({ event: 'done', data: { id, cached: false } });
+    const done = /** @type {any} */ (events[events.length - 1]);
+    expect(done.event).toBe('done');
+    expect(done.data).toMatchObject({ id, scannedAt: '2026-09-30T12:00:00.000Z' });
+    expect(done.data).not.toHaveProperty('cached');
+    expect(events.filter((e) => e.event === 'check').length).toBe(rubric.checks.length);
     expect(fetched).toBeGreaterThan(0);
     expect(puts.length).toBe(1);
+    expect(puts[0].id).toBe(id);
+    expect(puts[0].scannedAt).toBe('2026-09-30T12:00:00.000Z');
+  });
+
+  it('passes the kind of site through and rejects an unknown one before Turnstile', async () => {
+    /** @type {any[]} */
+    const stored = [];
+    let verified = 0;
+    const store = { get: async () => null, put: async (r) => void stored.push(r) };
+    const ok = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/&type=shop`), { store });
+    expect(ok[0].data).toMatchObject({ phase: 'start', siteType: 'shop' });
+    expect(ok[ok.length - 1].event).toBe('done');
+    expect(stored[0].siteType).toEqual({ id: 'shop', title: 'Online shop' });
+    await run(new Request('https://agentready.test/api/scan', { method: 'POST', body: JSON.stringify({ url: `${ORIGIN}/`, type: 'services' }), headers: { 'content-type': 'application/json' } }), { store });
+    expect(stored[1].siteType.id).toBe('services');
+    await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), { store });
+    expect(stored[2].siteType.id).toBe('general');
+    expect(stored[0].id).not.toBe(stored[2].id);
+    const bad = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/&type=spaceship`), { verifyTurnstile: async () => (verified += 1, { ok: true, codes: [] }) });
+    expect(bad).toEqual([{ event: 'error', data: { code: 'invalid-type', message: expect.stringContaining('kinds of site') } }]);
+    expect(verified).toBe(0);
   });
 
   it('accepts a POST body', async () => {

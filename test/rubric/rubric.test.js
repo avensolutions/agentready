@@ -7,11 +7,22 @@ import { rubric, rubricFiles, rubricHash } from '../../src/lib/rubric/index.js';
 describe('bundled rubric', () => {
   it('loads every file under rubric/dimensions and rubric/checks', () => {
     expect(rubricFiles.length).toBeGreaterThan(0);
-    expect(rubricFiles.every((f) => /^rubric\/(dimensions|checks)\/[a-z0-9-]+\.md$/.test(f.path))).toBe(true);
+    expect(rubricFiles.every((f) => /^rubric\/(dimensions|checks|site-types)\/[a-z0-9-]+\.md$/.test(f.path))).toBe(true);
   });
 
   it('has the five starting dimensions in order', () => {
     expect(rubric.dimensions.map((d) => d.id)).toEqual(['discovery', 'retrievability', 'structured-data', 'answerability', 'actionability']);
+  });
+
+  it('has the five site types with general as the default and valid references', () => {
+    expect(rubric.siteTypes.map((t) => t.id)).toEqual(['publisher', 'shop', 'services', 'software', 'general']);
+    expect(rubric.defaultSiteType.id).toBe('general');
+    for (const t of rubric.siteTypes) {
+      expect(t.summary.length, t.id).toBeGreaterThan(20);
+      expect(t.guidance.length, t.id).toBeGreaterThan(40);
+      for (const id of Object.keys(t.weights)) expect(rubric.dimensionById.has(id), `${t.id} -> ${id}`).toBe(true);
+      for (const id of t.skip) expect(rubric.checkById.has(id), `${t.id} -> ${id}`).toBe(true);
+    }
   });
 
   it('gives every dimension at least three checks and a progress label', () => {

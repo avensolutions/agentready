@@ -73,6 +73,34 @@ describe('runScan', () => {
     expect(progress.indexOf('assess:start:discovery')).toBeGreaterThan(progress.lastIndexOf('collect:done:api'));
   });
 
+  it('scores by the chosen site type, skips its checks without asking the model, and records it', async () => {
+    /** @type {string[]} */
+    const asked = [];
+    const provider = createMockProvider({ override: (id) => (asked.push(id), { score: 4 }) });
+    /** @type {any[]} */
+    const events = [];
+    const report = await runScan({ url: `${ORIGIN}/`, provider, fetchImpl: site, siteType: 'publisher', onProgress: (e) => events.push(e) });
+    const publisher = rubric.siteTypeById.get('publisher');
+    expect(report.siteType).toEqual({ id: 'publisher', title: publisher.title });
+    for (const id of publisher.skip) expect(asked).not.toContain(id);
+    expect(asked.length).toBe(rubric.checks.length - publisher.skip.length);
+    const byId = Object.fromEntries(report.dimensions.flatMap((d) => d.checks.map((c) => [c.id, c])));
+    expect(byId['pricing-and-terms']).toMatchObject({ applicable: false, score: null, rationale: '' });
+    expect(byId['what-it-does']).toMatchObject({ applicable: true, score: 4 });
+    expect(Object.fromEntries(report.dimensions.map((d) => [d.id, d.weight]))).toEqual(publisher.weights);
+    const answerability = report.dimensions.find((d) => d.id === 'answerability');
+    expect(answerability).toMatchObject({ total: 3, assessed: 3, score: 100 });
+    expect(report.overall).toBe(100);
+    const start = events.find((e) => e.phase === 'assess' && e.step === 'answerability' && e.status === 'start');
+    expect(start.checks.map((c) => c.id)).toEqual(['what-it-does', 'who-its-for', 'how-to-buy-or-contact']);
+  });
+
+  it('falls back to the default site type for an unknown id', async () => {
+    const report = await runScan({ url: `${ORIGIN}/`, provider: createMockProvider(), fetchImpl: site, siteType: 'spaceship' });
+    expect(report.siteType).toEqual({ id: 'general', title: rubric.defaultSiteType.title });
+    expect(report.dimensions.every((d) => d.checks.every((c) => c.applicable))).toBe(true);
+  });
+
   it('carries the check progress labels from the rubric on assess events', async () => {
     /** @type {import('../../src/lib/scan/run.js').ScanProgress[]} */
     const events = [];

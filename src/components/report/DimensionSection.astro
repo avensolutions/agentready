@@ -23,6 +23,7 @@ const partial = dimension.assessed < dimension.total;
       <div class="band">{dimension.band.label}</div>
       <ScoreBar score={dimension.score} band={dimension.band} />
       {partial && <p class="partial">{dimension.assessed} of {dimension.total} checks assessed</p>}
+      {dimension.total === 0 && <p class="partial">No checks in this area apply to this kind of site.</p>}
     </div>
   </header>
   <div class="checks">

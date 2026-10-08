@@ -2,7 +2,7 @@ import { FrontmatterError, parseFrontmatter } from './frontmatter.js';
 
 /**
  * @typedef {Object} RubricFile
- * @property {string} path  path ending in dimensions/<id>.md or checks/<id>.md
+ * @property {string} path  path ending in dimensions/<id>.md, checks/<id>.md or site-types/<id>.md
  * @property {string} text  file contents
  */
 
@@ -32,11 +32,32 @@ import { FrontmatterError, parseFrontmatter } from './frontmatter.js';
  */
 
 /**
+ * A kind of site, chosen by the person who starts a scan. It changes how
+ * the rubric is applied: dimension weights can be overridden, checks that
+ * make no sense for that kind of site are skipped, and the body is given to
+ * the assessor as guidance on how to read the checks.
+ *
+ * @typedef {Object} SiteType
+ * @property {string} id
+ * @property {string} title  the option label on the landing page and the label on the report
+ * @property {string} summary  one line under the option
+ * @property {number} order  display order of the options
+ * @property {boolean} isDefault  preselected when nothing else is chosen
+ * @property {Record<string, number>} weights  dimension weight overrides by dimension id
+ * @property {string[]} skip  checks not assessed for this kind of site
+ * @property {string} guidance  the markdown body, given to the assessor
+ * @property {string} path
+ */
+
+/**
  * @typedef {Object} Rubric
  * @property {Dimension[]} dimensions  sorted by order, each with its checks sorted by order then id
  * @property {Check[]} checks  every check, in dimension order
  * @property {Map<string, Check>} checkById
  * @property {Map<string, Dimension>} dimensionById
+ * @property {SiteType[]} siteTypes  sorted by order
+ * @property {Map<string, SiteType>} siteTypeById
+ * @property {SiteType} defaultSiteType
  */
 
 export class RubricError extends Error {
@@ -51,16 +72,34 @@ export class RubricError extends Error {
 /** Scores every check must define, one line each: `- N: ...` */
 export const SCORE_LEVELS = [0, 1, 2, 3, 4];
 
+/**
+ * The site type used when a rubric has no site-types/ files: every check
+ * applies and dimension weights are used as written.
+ * @type {SiteType}
+ */
+export const GENERAL_SITE_TYPE = Object.freeze({
+  id: 'general',
+  title: 'General',
+  summary: 'A balanced assessment across every area.',
+  order: 0,
+  isDefault: true,
+  weights: Object.freeze({}),
+  skip: Object.freeze([]),
+  guidance: '',
+  path: '',
+});
+
 const ID_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * @param {string} path
- * @returns {{ kind: 'dimension' | 'check', stem: string } | null}
+ * @returns {{ kind: 'dimension' | 'check' | 'site-type', stem: string } | null}
  */
 function classify(path) {
-  const match = /(?:^|\/)(dimensions|checks)\/([^/]+)\.md$/.exec(path.replace(/\\/g, '/'));
+  const match = /(?:^|\/)(dimensions|checks|site-types)\/([^/]+)\.md$/.exec(path.replace(/\\/g, '/'));
   if (!match) return null;
-  return { kind: match[1] === 'dimensions' ? 'dimension' : 'check', stem: match[2] };
+  const kind = match[1] === 'dimensions' ? 'dimension' : match[1] === 'checks' ? 'check' : 'site-type';
+  return { kind, stem: match[2] };
 }
 
 /**
@@ -108,6 +147,13 @@ function field(data, key, type, where, errors, opts = {}) {
   }
 }
 
+/** @param {Record<string, any>} data @param {Set<string>} allowed @param {string} where @param {string[]} errors */
+function rejectUnknownFields(data, allowed, where, errors) {
+  for (const key of Object.keys(data)) {
+    if (!allowed.has(key)) errors.push(`${where}: unknown field "${key}"`);
+  }
+}
+
 /**
  * Parse and validate rubric files. Throws RubricError listing every problem
  * found, so one build failure shows all of them.
@@ -123,13 +169,15 @@ export function parseRubric(files, evidenceKeys) {
   const dimensions = [];
   /** @type {Check[]} */
   const checks = [];
+  /** @type {SiteType[]} */
+  const siteTypes = [];
   const known = new Set(evidenceKeys);
 
   for (const file of files) {
     const where = file.path;
     const info = classify(file.path);
     if (!info) {
-      errors.push(`${where}: not under dimensions/ or checks/`);
+      errors.push(`${where}: not under dimensions/, checks/ or site-types/`);
       continue;
     }
     let parsed;
@@ -149,25 +197,53 @@ export function parseRubric(files, evidenceKeys) {
       if (id !== info.stem) errors.push(`${where}: id "${id}" does not match file name "${info.stem}"`);
     }
     const title = field(data, 'title', 'string', where, errors);
+
+    if (info.kind === 'site-type') {
+      rejectUnknownFields(data, new Set(['id', 'title', 'summary', 'order', 'default', 'weights', 'skip']), where, errors);
+      const summary = field(data, 'summary', 'string', where, errors);
+      const order = field(data, 'order', 'integer', where, errors);
+      let isDefault = false;
+      if (data.default !== undefined) {
+        if (typeof data.default !== 'boolean') errors.push(`${where}: "default" must be true or false`);
+        else isDefault = data.default;
+      }
+      /** @type {Record<string, number>} */
+      const weights = {};
+      if (data.weights !== undefined) {
+        if (!data.weights || typeof data.weights !== 'object' || Array.isArray(data.weights)) {
+          errors.push(`${where}: "weights" must be a map of dimension id to weight, for example { discovery: 25 }`);
+        } else {
+          for (const [dimensionId, value] of Object.entries(data.weights)) {
+            if (typeof value !== 'number' || !(value > 0)) errors.push(`${where}: weight for "${dimensionId}" must be a number greater than 0`);
+            else weights[dimensionId] = value;
+          }
+        }
+      }
+      /** @type {string[]} */
+      let skip = [];
+      if (data.skip !== undefined) {
+        if (!Array.isArray(data.skip) || data.skip.some((v) => typeof v !== 'string')) errors.push(`${where}: "skip" must be a list of check ids`);
+        else skip = /** @type {string[]} */ (data.skip);
+      }
+      if (id && title && summary && order !== undefined) {
+        siteTypes.push({ id, title, summary, order, isDefault, weights, skip, guidance: description, path: file.path });
+      }
+      continue;
+    }
+
     const weight = field(data, 'weight', 'number', where, errors);
     const order = field(data, 'order', 'integer', where, errors, { optional: info.kind === 'check' });
     const progress = field(data, 'progress', 'string', where, errors, { optional: info.kind === 'dimension' });
 
     if (info.kind === 'dimension') {
-      const allowed = new Set(['id', 'title', 'weight', 'order', 'progress']);
-      for (const key of Object.keys(data)) {
-        if (!allowed.has(key)) errors.push(`${where}: unknown field "${key}"`);
-      }
+      rejectUnknownFields(data, new Set(['id', 'title', 'weight', 'order', 'progress']), where, errors);
       if (id && title && weight && order !== undefined) {
         dimensions.push({ id, title, weight, order, progress, description, checks: [], path: file.path });
       }
       continue;
     }
 
-    const allowed = new Set(['id', 'dimension', 'title', 'weight', 'order', 'progress', 'evidence']);
-    for (const key of Object.keys(data)) {
-      if (!allowed.has(key)) errors.push(`${where}: unknown field "${key}"`);
-    }
+    rejectUnknownFields(data, new Set(['id', 'dimension', 'title', 'weight', 'order', 'progress', 'evidence']), where, errors);
     const dimension = field(data, 'dimension', 'string', where, errors);
     const evidence = field(data, 'evidence', 'string[]', where, errors);
     if (evidence) {
@@ -222,6 +298,28 @@ export function parseRubric(files, evidenceKeys) {
     if (d.checks.length === 0) errors.push(`${d.path}: dimension "${d.id}" has no checks`);
   }
 
+  const siteTypeById = new Map();
+  const typeOrders = new Map();
+  for (const t of siteTypes) {
+    if (siteTypeById.has(t.id)) errors.push(`${t.path}: duplicate site type id "${t.id}"`);
+    siteTypeById.set(t.id, t);
+    if (typeOrders.has(t.order)) errors.push(`${t.path}: order ${t.order} is also used by "${typeOrders.get(t.order)}"`);
+    typeOrders.set(t.order, t.id);
+    for (const dimensionId of Object.keys(t.weights)) {
+      if (!dimensionById.has(dimensionId)) errors.push(`${t.path}: weights name unknown dimension "${dimensionId}"`);
+    }
+    const seen = new Set();
+    for (const checkId of t.skip) {
+      if (!checkById.has(checkId)) errors.push(`${t.path}: skip names unknown check "${checkId}"`);
+      if (seen.has(checkId)) errors.push(`${t.path}: check "${checkId}" is skipped twice`);
+      seen.add(checkId);
+    }
+  }
+  if (siteTypes.length > 0) {
+    const defaults = siteTypes.filter((t) => t.isDefault);
+    if (defaults.length !== 1) errors.push(`site types: exactly one must have "default: true" (found ${defaults.length})`);
+  }
+
   if (errors.length > 0) throw new RubricError(errors);
 
   dimensions.sort((a, b) => a.order - b.order);
@@ -229,11 +327,15 @@ export function parseRubric(files, evidenceKeys) {
     d.checks.sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
   }
   const orderedChecks = dimensions.flatMap((d) => d.checks);
+  const orderedTypes = siteTypes.length > 0 ? siteTypes.sort((a, b) => a.order - b.order) : [GENERAL_SITE_TYPE];
   return {
     dimensions,
     checks: orderedChecks,
     checkById: new Map(orderedChecks.map((c) => [c.id, c])),
     dimensionById,
+    siteTypes: orderedTypes,
+    siteTypeById: new Map(orderedTypes.map((t) => [t.id, t])),
+    defaultSiteType: /** @type {SiteType} */ (orderedTypes.find((t) => t.isDefault)),
   };
 }
 

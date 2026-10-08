@@ -1,11 +1,13 @@
 ---
 import { PUBLIC_TURNSTILE_SITE_KEY } from 'astro:env/client';
 import Base from '../layouts/Base.astro';
+import { rubric } from '../lib/rubric/index.js';
 
 const title = 'agentready';
 const byline = 'How well does your website work for AI agents?';
 const support =
-  'Enter a site address for a scored report on discovery, content retrievability, structured data, answerability and agent actionability, with findings and recommendations.';
+  'Enter a site address and say what kind of site it is for a scored report on discovery, content retrievability, structured data, answerability and agent actionability, with findings and recommendations.';
+const siteTypes = rubric.siteTypes;
 ---
 <Base description={`${byline} ${support}`}>
   <section class="landing">
@@ -15,20 +17,42 @@ const support =
     <p class="support">{support}</p>
 
     <form class="scan-form" id="scan-form" action="/" method="get">
-      <label class="sr" for="url">Website address</label>
-      <input
-        class="field"
-        id="url"
-        name="url"
-        type="url"
-        inputmode="url"
-        autocomplete="url"
-        autocapitalize="off"
-        spellcheck="false"
-        placeholder="https://example.com"
-        required
-      />
-      <button class="btn btn-solid" id="scan-submit" type="submit">Check site</button>
+      <div class="step step-url" id="step-url">
+        <label class="sr" for="url">Website address</label>
+        <input
+          class="field"
+          id="url"
+          name="url"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          autocapitalize="off"
+          spellcheck="false"
+          placeholder="https://example.com"
+          required
+        />
+        <button class="btn btn-solid" id="scan-next" type="submit">Next</button>
+      </div>
+      <fieldset class="step step-type" id="step-type" hidden>
+        <legend class="step-legend">What kind of site is it?</legend>
+        <p class="step-echo" id="url-echo"></p>
+        <div class="type-options">
+          {siteTypes.map((t) => (
+            <label class="type-option">
+              <input type="radio" name="type" value={t.id} checked={t.isDefault} />
+              <span class="type-text">
+                <span class="type-title">{t.title}</span>
+                <span class="type-summary">{t.summary}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p class="step-note">The kind of site sets how the five areas are weighted and which checks apply.</p>
+        <div class="step-actions">
+          <button class="btn btn-quiet" id="scan-back" type="button">Back</button>
+          <button class="btn btn-solid" id="scan-submit" type="submit">Check site</button>
+        </div>
+      </fieldset>
     </form>
     <!-- Turnstile renders here only when a challenge needs interaction -->
     <div class="scan-turnstile" id="turnstile" data-sitekey={PUBLIC_TURNSTILE_SITE_KEY}></div>
@@ -72,13 +96,79 @@ const support =
     text-wrap: balance;
   }
   .scan-form {
-    display: flex;
-    gap: 12px;
     max-width: 640px;
     margin: 44px auto 0;
   }
-  .scan-form .field { flex: 1; min-width: 0; }
-  .scan-form .btn { flex: none; }
+  .step-url {
+    display: flex;
+    gap: 12px;
+  }
+  .step-url .field { flex: 1; min-width: 0; }
+  .step-url .btn { flex: none; }
+  .step[hidden] { display: none; }
+  .step-type {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    text-align: left;
+  }
+  .step-legend {
+    padding: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: var(--text-h3);
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .step-echo {
+    margin: 10px 0 0;
+    max-width: none;
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+    overflow-wrap: anywhere;
+  }
+  .type-options {
+    display: grid;
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .type-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 18px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .type-option:has(input:checked) { border-color: var(--olive); }
+  .type-option:has(input:focus-visible) { outline: 2px solid var(--olive); outline-offset: 2px; }
+  .type-option input {
+    flex: none;
+    margin: 5px 0 0;
+    accent-color: var(--olive);
+  }
+  .type-text { display: grid; gap: 2px; }
+  .type-title { font-weight: 500; color: var(--ink); }
+  .type-summary {
+    font-size: var(--text-small);
+    line-height: 1.5;
+    color: var(--ink-muted);
+  }
+  .step-note {
+    margin: 16px 0 0;
+    max-width: none;
+    font-size: var(--text-fine);
+    color: var(--ink-muted);
+  }
+  .step-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+  }
   .scan-turnstile {
     max-width: 640px;
     margin: 0 auto;
@@ -87,7 +177,7 @@ const support =
 
   @media (max-width: 768px) {
     .landing { padding-top: 56px; }
-    .scan-form { flex-direction: column; }
+    .step-url { flex-direction: column; }
   }
 </style>
 <style is:global>
@@ -189,13 +279,18 @@ const support =
 
 
 <script>
-  // Landing page behaviour: submit or a shared ?url= link starts a scan, the
+  // Landing page behaviour: the address step leads to the kind-of-site step,
+  // and submitting that (or a shared ?url=&type= link) starts a scan. The
   // spinner line shows the step that is running, completed steps are listed
   // beneath, and the result or error replaces the spinner. Every line comes
   // from a progress event the pipeline sent for a real step.
   const form = /** @type {HTMLFormElement} */ (document.getElementById('scan-form'));
   const field = /** @type {HTMLInputElement} */ (document.getElementById('url'));
   const submit = /** @type {HTMLButtonElement} */ (document.getElementById('scan-submit'));
+  const stepUrl = /** @type {HTMLElement} */ (document.getElementById('step-url'));
+  const stepType = /** @type {HTMLFieldSetElement} */ (document.getElementById('step-type'));
+  const urlEcho = /** @type {HTMLElement} */ (document.getElementById('url-echo'));
+  const back = /** @type {HTMLButtonElement} */ (document.getElementById('scan-back'));
   const status = /** @type {HTMLElement} */ (document.getElementById('scan-status'));
   const label = /** @type {HTMLElement} */ (document.getElementById('scan-label'));
   const steps = /** @type {HTMLOListElement} */ (document.getElementById('scan-steps'));
@@ -222,23 +317,28 @@ const support =
 
   function renderWidget() {
     const ts = /** @type {any} */ (window).turnstile;
-    if (!ts || widgetId !== null) return;
-    widgetId = ts.render(turnstileHost, {
-      sitekey: siteKey,
-      appearance: 'interaction-only',
-      theme: 'light',
-      size: 'flexible',
-      callback: (/** @type {string} */ t) => {
-        token = t;
-        for (const resolve of waiters.splice(0)) resolve(t);
-      },
-      'expired-callback': () => {
-        token = null;
-      },
-      'error-callback': () => {
-        token = null;
-      },
-    });
+    if (!ts || typeof ts.render !== 'function' || widgetId !== null) return;
+    try {
+      widgetId = ts.render(turnstileHost, {
+        sitekey: siteKey,
+        appearance: 'interaction-only',
+        theme: 'light',
+        size: 'flexible',
+        callback: (/** @type {string} */ t) => {
+          token = t;
+          for (const resolve of waiters.splice(0)) resolve(t);
+        },
+        'expired-callback': () => {
+          token = null;
+        },
+        'error-callback': () => {
+          token = null;
+        },
+      });
+    } catch {
+      // the Turnstile script was not ready; the next tick tries again
+      widgetId = null;
+    }
   }
 
   (function waitForTurnstile() {
@@ -331,10 +431,10 @@ const support =
     if (score) score.textContent = c.score === null ? 'not assessed' : `${c.score} / 4`;
   }
 
-  /** @param {{ id: string, overall: number | null, band: { label: string }, url: string, cached?: boolean }} d */
+  /** @param {{ id: string, overall: number | null, band: { label: string }, url: string }} d */
   function onDone(d) {
     status.classList.add('is-finished');
-    setLabel(d.cached ? 'A recent report for this site exists.' : 'Scan complete.');
+    setLabel('Scan complete.');
     result.hidden = false;
     result.classList.remove('is-error');
     result.replaceChildren();
@@ -365,19 +465,50 @@ const support =
     finish();
   }
 
+  // ---------- the two steps: address, then kind of site ----------
+  /** @returns {HTMLInputElement[]} */
+  function typeInputs() {
+    return /** @type {HTMLInputElement[]} */ ([...form.querySelectorAll('input[name="type"]')]);
+  }
+  function selectedType() {
+    return typeInputs().find((i) => i.checked)?.value ?? '';
+  }
+  /** @param {string} id @returns {boolean} whether the id names one of the options */
+  function selectType(id) {
+    const input = typeInputs().find((i) => i.value === id);
+    if (input) input.checked = true;
+    return Boolean(input);
+  }
+  function showTypeStep() {
+    urlEcho.textContent = field.value.trim();
+    stepUrl.hidden = true;
+    stepType.hidden = false;
+    (typeInputs().find((i) => i.checked) ?? typeInputs()[0])?.focus();
+  }
+  function showUrlStep() {
+    stepType.hidden = true;
+    stepUrl.hidden = false;
+    field.focus();
+  }
+  /** @param {boolean} on */
+  function lockForm(on) {
+    submit.disabled = on;
+    field.disabled = on;
+    back.disabled = on;
+    for (const input of typeInputs()) input.disabled = on;
+  }
+
   function finish() {
     running = false;
-    submit.disabled = false;
-    field.disabled = false;
+    lockForm(false);
     resetTurnstile();
   }
 
-  /** @param {string} url */
-  async function startScan(url) {
+  /** @param {string} url @param {string} type  site type id */
+  async function startScan(url, type) {
     if (running) return;
     running = true;
-    submit.disabled = true;
-    field.disabled = true;
+    lockForm(true);
     status.hidden = false;
     status.classList.remove('is-finished');
     result.hidden = true;
@@ -387,8 +518,9 @@ const support =
     setLabel('Starting the scan...');
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get('url') !== url) {
+    if (params.get('url') !== url || params.get('type') !== type) {
       params.set('url', url);
+      params.set('type', type);
       history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
     }
 
@@ -407,7 +539,7 @@ const support =
       response = await fetch('/api/scan', {
         method: 'POST',
         headers: { accept: 'text/event-stream', 'content-type': 'application/json' },
-        body: JSON.stringify({ url, token: turnstileToken }),
+        body: JSON.stringify({ url, type, token: turnstileToken }),
       });
     } catch {
       onError({ code: 'network', message: 'Could not reach the scan service. Check your connection and try again.' });
@@ -460,13 +592,25 @@ const support =
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
+    if (!stepUrl.hidden) {
+      // step one: a valid address moves to the kind-of-site step
+      if (!field.reportValidity()) return;
+      showTypeStep();
+      return;
+    }
     const url = field.value.trim();
-    if (url) startScan(url);
+    if (url) startScan(url, selectedType());
   });
+  back.addEventListener('click', showUrlStep);
 
-  const fromQuery = new URLSearchParams(window.location.search).get('url');
+  // a shared link: ?url= fills the address and asks for the kind of site;
+  // ?url=&type= with a known type starts the scan at once
+  const query = new URLSearchParams(window.location.search);
+  const fromQuery = query.get('url');
   if (fromQuery) {
     field.value = fromQuery;
-    startScan(fromQuery);
+    const typeFromQuery = query.get('type') ?? '';
+    showTypeStep();
+    if (typeFromQuery && selectType(typeFromQuery)) startScan(fromQuery, typeFromQuery);
   }
 </script>

@@ -6,7 +6,7 @@
 import { EVIDENCE_KEY_NAMES } from '../evidence/keys.js';
 import { hashRubric, parseRubric } from './parse.js';
 
-const modules = import.meta.glob('/rubric/{dimensions,checks}/*.md', {
+const modules = import.meta.glob('/rubric/{dimensions,checks,site-types}/*.md', {
   query: '?raw',
   import: 'default',
   eager: true,

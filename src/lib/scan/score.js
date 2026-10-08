@@ -7,7 +7,9 @@
  * - the overall score is 0 to 100: the weighted mean of the scored dimensions
  *
  * Unassessed checks and dimensions are left out of the means rather than
- * counted as zero, and the report says so.
+ * counted as zero, and the report says so. A site type can override the
+ * dimension weights and skip checks that do not apply to that kind of site;
+ * skipped checks are left out of the means entirely.
  */
 
 /** Score bands for display. Thresholds are inclusive lower bounds. */
@@ -46,10 +48,12 @@ export function weightedMean(items) {
 /**
  * @param {import('../rubric/parse.js').Dimension} dimension
  * @param {Map<string, import('./assess.js').CheckResult>} resultsById
- * @returns {{ score: number | null, assessed: number, total: number }}
+ * @param {Iterable<string>} [skip]  ids of checks that do not apply and are left out entirely
+ * @returns {{ score: number | null, assessed: number, total: number }}  total counts the applicable checks
  */
-export function scoreDimension(dimension, resultsById) {
-  const items = dimension.checks.map((c) => ({ weight: c.weight, score: resultsById.get(c.id)?.score ?? null }));
+export function scoreDimension(dimension, resultsById, skip = []) {
+  const skipped = new Set(skip);
+  const items = dimension.checks.filter((c) => !skipped.has(c.id)).map((c) => ({ weight: c.weight, score: resultsById.get(c.id)?.score ?? null }));
   const mean = weightedMean(items);
   return {
     score: mean === null ? null : Math.round((mean / 4) * 100),
@@ -61,13 +65,18 @@ export function scoreDimension(dimension, resultsById) {
 /**
  * @param {import('../rubric/parse.js').Rubric} rubric
  * @param {Map<string, import('./assess.js').CheckResult>} resultsById
- * @returns {{ overall: number | null, dimensions: Array<{ id: string, score: number | null, assessed: number, total: number }> }}
+ * @param {import('../rubric/parse.js').SiteType} [siteType]  overrides dimension weights and skips checks; without it the rubric applies as written
+ * @returns {{ overall: number | null, dimensions: Array<{ id: string, weight: number, score: number | null, assessed: number, total: number }> }}  weight is the one used
  */
-export function scoreReport(rubric, resultsById) {
-  const dimensions = rubric.dimensions.map((d) => ({ id: d.id, weight: d.weight, ...scoreDimension(d, resultsById) }));
+export function scoreReport(rubric, resultsById, siteType) {
+  const dimensions = rubric.dimensions.map((d) => ({
+    id: d.id,
+    weight: siteType?.weights[d.id] ?? d.weight,
+    ...scoreDimension(d, resultsById, siteType?.skip ?? []),
+  }));
   const overall = weightedMean(dimensions.map((d) => ({ weight: d.weight, score: d.score })));
   return {
     overall: overall === null ? null : Math.round(overall),
-    dimensions: dimensions.map(({ weight, ...rest }) => rest),
+    dimensions,
   };
 }

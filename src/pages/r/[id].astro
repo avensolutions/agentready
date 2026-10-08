@@ -26,7 +26,8 @@ if (!report) {
 const host = report ? hostOf(report.url) : '';
 const scanned = report ? formatDateTime(report.scannedAt) : '';
 const duration = report ? formatDuration(report.stats.elapsedMs) : '';
-const checkAgainHref = report ? `/?url=${encodeURIComponent(report.url)}` : '/';
+const siteTypeTitle = report?.siteType?.title ?? 'General';
+const checkAgainHref = report ? `/?url=${encodeURIComponent(report.url)}${report.siteType ? `&type=${encodeURIComponent(report.siteType.id)}` : ''}` : '/';
 const shareUrl = new URL(Astro.url.pathname, site.url).toString();
 ---
 <Base
@@ -47,6 +48,7 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
           <p class="report-meta">
             <a href={report.url} rel="noopener nofollow">{report.url}</a>
             <span>Scanned {scanned}</span>
+            <span>Kind of site: {siteTypeTitle}</span>
           </p>
 
           <div class="overall">
@@ -58,7 +60,7 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
               <p class="overall-band">{report.band.label}</p>
               <ScoreBar score={report.overall} band={report.band} />
               <p class="overall-note">
-                The overall score combines the five dimension scores by weight. Each dimension is the weighted mean of its checks, each scored 0 to 4 against the rubric.
+                The overall score combines the five dimension scores by weight, with the weights set by the kind of site. Each dimension is the weighted mean of the checks that apply to that kind of site, each scored 0 to 4 against the rubric.
               </p>
             </div>
           </div>
@@ -90,6 +92,7 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
         <dl>
           <div><dt>Address scanned</dt><dd><a href={report.url} rel="noopener nofollow">{report.url}</a></dd></div>
           <div><dt>Scanned</dt><dd>{scanned}</dd></div>
+          <div><dt>Kind of site</dt><dd>{siteTypeTitle}</dd></div>
           <div><dt>Pages read</dt><dd>{report.stats.sampledPages.length > 0 ? `The page above and ${report.stats.sampledPages.length} linked ${report.stats.sampledPages.length === 1 ? 'page' : 'pages'}: ${report.stats.sampledPages.map((p) => new URL(p).pathname).join(', ')}` : 'The page above only'}</dd></div>
           <div><dt>Requests to the site</dt><dd>{report.stats.fetches}</dd></div>
           <div><dt>Assessor</dt><dd>{report.model}</dd></div>
@@ -97,7 +100,7 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
           <div><dt>Scan time</dt><dd>{duration}</dd></div>
         </dl>
         <p class="report-cache">
-          Reports are kept for a limited time and a repeat check of the same address within that time shows the stored report. <a href={checkAgainHref}>Check {host} again</a>.
+          Every check is a live scan of the site as it is at the time. This report is kept at this address for a limited time, and a new check of the same site as the same kind replaces it. <a href={checkAgainHref}>Check {host} again</a>.
         </p>
       </footer>
 

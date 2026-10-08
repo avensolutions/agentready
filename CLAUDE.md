@@ -15,7 +15,7 @@ Free tier limits shape the design. Confirm the current numbers in the Cloudflare
 
 - Worker CPU time per request is small (10 ms at time of writing). Waiting on `fetch` does not count, parsing does. Prerender static pages, use `HTMLRewriter` rather than a DOM library, and keep per-request work light.
 - Subrequests per request are capped (50 at time of writing). A scan has a fixed budget of target-site fetches plus LLM calls that stays well under the cap.
-- The Gemini free tier has low per-minute and per-day request limits. Keep LLM calls per scan to a small fixed number, handle 429s with a clear user-facing message, and reuse cached reports.
+- The Gemini free tier has low per-minute and per-day request limits. Keep LLM calls per scan to a small fixed number, handle 429s with a clear user-facing message, and keep the number of calls per scan fixed.
 - KV has a low daily write limit on the free plan. One write per completed scan.
 
 ## Architecture
@@ -25,22 +25,22 @@ A scan is a fixed pipeline, not an open-ended agent loop.
 1. Validate and normalise the URL (`src/lib/safety/`).
 2. Collectors (`src/lib/collectors/`) fetch evidence deterministically: robots.txt, sitemap, llms.txt, llms-full.txt, home page HTML, a small sample of linked pages, response headers, markdown alternates, structured data. Each collector returns one named evidence key.
 3. Checks are markdown files. The prose of a check is the instruction given to the LLM, which judges the evidence keys the check names and returns structured JSON: score, rationale, evidence quotes, recommendation. Use the Gemini structured output (response schema) feature and validate the result in code.
-4. Scoring (`src/lib/scan/score.js`) is done in code, never by the LLM. Check scores and weights roll up to dimension scores (0-100), and dimension weights roll up to the overall score (0-100).
+4. Scoring (`src/lib/scan/score.js`) is done in code, never by the LLM. Check scores and weights roll up to dimension scores (0-100), and dimension weights roll up to the overall score (0-100). The site type chosen for the scan (`rubric/site-types/`) can override dimension weights and skip checks that do not apply to that kind of site; skipped checks are not sent to the LLM and are left out of the scores.
 5. The report is stored in KV and rendered at `/r/[id]`.
 
 Routes:
 
-- `/` - landing page, prerendered. Title, byline, URL text field, submit button. If `?url=` is present the field is filled and the scan starts automatically.
-- `/api/scan?url=` - Server-Sent Events stream with `progress`, `check`, `done` and `error` events.
+- `/` - landing page, prerendered. Title, byline, URL text field and a Next button, then a second step that asks what kind of site it is (radio buttons listing the rubric's site types) with the submit button. If `?url=` is present the field is filled and the kind-of-site step is shown; if `?type=` names a site type as well, the scan starts automatically.
+- `/api/scan?url=&type=` - Server-Sent Events stream with `progress`, `check`, `done` and `error` events. `type` is a site type id; the default site type applies when it is absent, and an unknown value is an `error` event.
 - `/r/[id]` - report page, server-rendered from KV, shareable by link.
 
 Progress text shown next to the spinner ("Checking llms.txt...") must correspond to real pipeline steps. Labels come from the `progress` field of the collector or check being run. No simulated progress.
 
-Reports are cached by normalised URL for a fixed period so a repeat visit or a shared `?url=` link loads the stored report instead of spending LLM quota. Each report records the scan date, the scanned URL and a hash of the rubric it was scored against.
+Every scan is live. A stored report is never served in place of a new scan, because a site can change between scans and a stale result would mislead. Finished reports are stored in KV under an id derived from the normalised URL and the site type so the report page is shareable, and a new scan of the same URL as the same kind of site replaces the stored report. Each report records the scan date, the scanned URL and a hash of the rubric it was scored against.
 
 ## Rubric in markdown
 
-Dimensions, checks and scoring rubrics live in `rubric/` as markdown with YAML frontmatter. They are bundled at build time (`import.meta.glob` with `?raw`, or an equivalent build step), since there is no filesystem at runtime. Changing a dimension, check, weight or rubric must need only a markdown edit. Code changes are needed only when a check requires a new evidence key.
+Dimensions, checks, site types and scoring rubrics live in `rubric/` as markdown with YAML frontmatter. They are bundled at build time (`import.meta.glob` with `?raw`, or an equivalent build step), since there is no filesystem at runtime. Changing a dimension, check, site type, weight or rubric must need only a markdown edit. Code changes are needed only when a check requires a new evidence key.
 
 `rubric/dimensions/<id>.md`:
 
@@ -73,7 +73,23 @@ Scoring:
 - 4: ...
 ```
 
-Every check is scored 0-4. The build fails if a check references an unknown dimension or evidence key, a required field is missing, or an id is duplicated. `rubric/README.md` documents the format and the list of available evidence keys, and is kept current.
+`rubric/site-types/<id>.md`:
+
+```markdown
+---
+id: shop
+title: Online shop
+summary: People buy products on the site. A catalogue with prices, a cart and a checkout.
+order: 2
+weights: { discovery: 15, retrievability: 20, structured-data: 25, answerability: 25, actionability: 15 }
+skip: [llms-full-txt, openapi-description]
+---
+Guidance given to the assessor on how to read the checks for this kind of site.
+```
+
+Exactly one site type carries `default: true`. `weights` overrides the dimension weights for that kind of site and `skip` lists the checks that are not assessed for it.
+
+Every check is scored 0-4. The build fails if a check references an unknown dimension or evidence key, a site type names an unknown dimension or check, there is not exactly one default site type, a required field is missing, or an id is duplicated. `rubric/README.md` documents the format and the list of available evidence keys, and is kept current.
 
 ## Security and abuse
 
@@ -91,7 +107,7 @@ The UI must read as part of the parent site, https://theoverstorygroup.com/ (bra
 - Take fonts, colours, spacing, button and input styles from the parent site. Prefer its source repo if one is available locally, otherwise derive them from its live CSS. Put them in `src/styles/tokens.css` as CSS custom properties and use only those tokens in components.
 - Self-host the fonts so the report and the PDF render identically.
 - Link back to the parent site in the header and footer. The report ends with a call to action pointing to https://theoverstorygroup.com/contact.
-- The landing page stays minimal: title, byline, URL field, submit button. During a scan it shows a spinner and the current progress line, with completed steps listed beneath.
+- The landing page stays minimal: title, byline, URL field, then the kind-of-site step with its radio buttons and the submit button. During a scan it shows a spinner and the current progress line, with completed steps listed beneath.
 
 ## PDF
 

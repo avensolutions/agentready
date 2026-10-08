@@ -37,7 +37,7 @@ npm run deploy   # build and deploy with wrangler
 - `src/layouts/`, `src/components/` - shared chrome
 - `src/pages/` - landing page, scan endpoint and report page
 - `src/lib/` - URL safety, collectors, LLM provider, scoring
-- `rubric/` - dimensions and checks as markdown with YAML frontmatter
+- `rubric/` - dimensions, checks and site types as markdown with YAML frontmatter
 - `docs/` - platform limits and other notes
 - `test/` - Vitest unit tests
 

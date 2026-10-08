@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RubricError, hashRubric, parseRubric } from '../../src/lib/rubric/parse.js';
+import { GENERAL_SITE_TYPE, RubricError, hashRubric, parseRubric } from '../../src/lib/rubric/parse.js';
 
 const KEYS = ['alpha', 'beta'];
 
@@ -96,12 +96,53 @@ describe('parseRubric', () => {
     const broken = { path: 'rubric/checks/bad.md', text: 'no frontmatter' };
     const errors = errorsOf([dimension, check, stray, broken]);
     expect(errors).toEqual(
-      expect.arrayContaining([expect.stringContaining('not under dimensions/ or checks/'), expect.stringContaining('must start with a "---" line')]),
+      expect.arrayContaining([expect.stringContaining('not under dimensions/, checks/ or site-types/'), expect.stringContaining('must start with a "---" line')]),
     );
   });
 
   it('fails on an empty rubric', () => {
     expect(errorsOf([])).toEqual(['no dimensions found']);
+  });
+});
+
+const siteType = {
+  path: 'rubric/site-types/shop.md',
+  text: "---\nid: shop\ntitle: Online shop\nsummary: People buy things.\norder: 1\ndefault: true\nweights: { one: 30 }\nskip: [first]\n---\nJudge as a shopper's agent.\n",
+};
+const plainType = { path: 'rubric/site-types/general.md', text: '---\nid: general\ntitle: General\nsummary: Everything applies.\norder: 2\n---\nApply every check.\n' };
+
+describe('site types', () => {
+  it('assembles site types with weights, skips and guidance, in order, with one default', () => {
+    const rubric = parseRubric([dimension, check, plainType, siteType], KEYS);
+    expect(rubric.siteTypes.map((t) => t.id)).toEqual(['shop', 'general']);
+    expect(rubric.defaultSiteType.id).toBe('shop');
+    expect(rubric.siteTypeById.get('shop')).toMatchObject({ title: 'Online shop', summary: 'People buy things.', order: 1, isDefault: true, weights: { one: 30 }, skip: ['first'], guidance: "Judge as a shopper's agent." });
+    expect(rubric.siteTypeById.get('general')).toMatchObject({ isDefault: false, weights: {}, skip: [] });
+  });
+
+  it('falls back to a built-in general type when the rubric has none', () => {
+    const rubric = parseRubric([dimension, check], KEYS);
+    expect(rubric.siteTypes).toEqual([GENERAL_SITE_TYPE]);
+    expect(rubric.defaultSiteType).toBe(GENERAL_SITE_TYPE);
+  });
+
+  it('validates references, the default flag, orders and fields', () => {
+    const bad = { path: 'rubric/site-types/bad.md', text: '---\nid: bad\ntitle: Bad\nsummary: s\norder: 1\nweights: { nope: 5, one: 0 }\nskip: [missing, first, first]\ncolour: red\n---\nx\n' };
+    expect(errorsOf([dimension, check, siteType, bad])).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('weights name unknown dimension "nope"'),
+        expect.stringContaining('weight for "one" must be a number greater than 0'),
+        expect.stringContaining('skip names unknown check "missing"'),
+        expect.stringContaining('check "first" is skipped twice'),
+        expect.stringContaining('unknown field "colour"'),
+        expect.stringContaining('order 1 is also used by "shop"'),
+      ]),
+    );
+    expect(errorsOf([dimension, check, plainType])).toEqual([expect.stringContaining('exactly one must have "default: true" (found 0)')]);
+    const second = { ...plainType, text: plainType.text.replace('order: 2\n', 'order: 2\ndefault: true\n') };
+    expect(errorsOf([dimension, check, siteType, second])).toEqual([expect.stringContaining('(found 2)')]);
+    const noSummary = { path: 'rubric/site-types/nosummary.md', text: '---\nid: nosummary\ntitle: T\norder: 3\ndefault: true\n---\nx\n' };
+    expect(errorsOf([dimension, check, noSummary])).toEqual([expect.stringContaining('missing required field "summary"')]);
   });
 });
 

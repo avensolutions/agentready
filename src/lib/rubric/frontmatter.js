@@ -5,6 +5,7 @@
  * - `key: value` where value is a bare string, a quoted string ('...' or
  *   "..."), a number, true or false
  * - `key: [a, b, c]` flow lists of those scalars
+ * - `key: { a: 1, b: two }` flow maps of those scalars
  * - blank lines and `#` comment lines
  *
  * Anything else (block lists, nested maps, multi-line strings, duplicate
@@ -21,6 +22,7 @@ export class FrontmatterError extends Error {
 }
 
 const KEY_RE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:\s+(.*))?$/;
+const MAP_ENTRY_RE = /^([A-Za-z_][A-Za-z0-9_-]*):\s*(.+)$/;
 const NUMBER_RE = /^-?(?:\d+\.?\d*|\.\d+)$/;
 
 /**
@@ -93,9 +95,36 @@ function parseFlowList(raw, key) {
 }
 
 /**
+ * @param {string} raw
+ * @param {string} key
+ * @returns {Record<string, string | number | boolean>}
+ */
+function parseFlowMap(raw, key) {
+  const inner = raw.trim().slice(1, -1).trim();
+  /** @type {Record<string, string | number | boolean>} */
+  const out = {};
+  if (inner === '') return out;
+  if (inner.includes('[') || inner.includes('{')) {
+    throw new FrontmatterError(`"${key}" nested maps are not supported`);
+  }
+  for (const item of inner.split(',')) {
+    const match = MAP_ENTRY_RE.exec(item.trim());
+    if (!match) {
+      throw new FrontmatterError(`"${key}" map entries must look like "name: value", got "${item.trim()}"`);
+    }
+    const [, name, value] = match;
+    if (Object.prototype.hasOwnProperty.call(out, name)) {
+      throw new FrontmatterError(`"${key}" has a duplicate map key "${name}"`);
+    }
+    out[name] = parseScalar(value, `${key}.${name}`);
+  }
+  return out;
+}
+
+/**
  * Parse a document with frontmatter.
  * @param {string} text
- * @returns {{ data: Record<string, string | number | boolean | Array<string | number | boolean>>, body: string }}
+ * @returns {{ data: Record<string, string | number | boolean | Array<string | number | boolean> | Record<string, string | number | boolean>>, body: string }}
  */
 export function parseFrontmatter(text) {
   const { frontmatter, body } = splitFrontmatter(text);
@@ -122,6 +151,11 @@ export function parseFrontmatter(text) {
         throw new FrontmatterError(`line ${i + 1}: "${key}" list is not closed`);
       }
       data[key] = parseFlowList(trimmed, key);
+    } else if (trimmed.startsWith('{')) {
+      if (!trimmed.endsWith('}')) {
+        throw new FrontmatterError(`line ${i + 1}: "${key}" map is not closed`);
+      }
+      data[key] = parseFlowMap(trimmed, key);
     } else {
       data[key] = parseScalar(trimmed, key);
     }

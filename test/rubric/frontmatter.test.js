@@ -31,6 +31,18 @@ describe('parseFrontmatter', () => {
     expect(data).toEqual({ id: 'llms-txt', weight: 3, ratio: 0.5, flag: true, title: 'quoted: value', evidence: ['a', 'b', 2] });
   });
 
+  it('parses flow maps of scalars', () => {
+    const { data } = parseFrontmatter("---\nweights: { discovery: 25, structured-data: 20, name: 'x' }\nempty: {}\n---\n");
+    expect(data).toEqual({ weights: { discovery: 25, 'structured-data': 20, name: 'x' }, empty: {} });
+  });
+
+  it('rejects malformed flow maps', () => {
+    expect(() => parseFrontmatter('---\nweights: { a: 1\n---\n')).toThrow(/not closed/);
+    expect(() => parseFrontmatter('---\nweights: { a }\n---\n')).toThrow(/name: value/);
+    expect(() => parseFrontmatter('---\nweights: { a: }\n---\n')).toThrow(/name: value/);
+    expect(() => parseFrontmatter('---\nweights: { a: 1, a: 2 }\n---\n')).toThrow(/duplicate map key "a"/);
+  });
+
   it('keeps a bare string with colons after the key', () => {
     const { data } = parseFrontmatter('---\nprogress: Checking for llms.txt...\n---\n');
     expect(data.progress).toBe('Checking for llms.txt...');
@@ -43,7 +55,7 @@ describe('parseFrontmatter', () => {
   it('rejects block lists and nested structures', () => {
     expect(() => parseFrontmatter('---\nevidence:\n  - a\n---\n')).toThrow(FrontmatterError);
     expect(() => parseFrontmatter('---\nevidence: [[a]]\n---\n')).toThrow(/nested/);
-    expect(() => parseFrontmatter('---\nmeta: {a: 1}\n---\n')).toThrow(/unsupported/);
+    expect(() => parseFrontmatter('---\nmeta: { a: [1] }\n---\n')).toThrow(/nested/);
   });
 
   it('rejects empty values and unclosed lists', () => {

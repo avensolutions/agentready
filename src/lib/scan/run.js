@@ -2,7 +2,7 @@ import { collectEvidence } from '../collectors/index.js';
 import { LlmError } from '../llm/index.js';
 import { rubric as bundledRubric, rubricHash } from '../rubric/index.js';
 import { normaliseTarget } from '../safety/url.js';
-import { assessDimension } from './assess.js';
+import { applicableChecks, assessDimension } from './assess.js';
 import { BUDGET } from './budget.js';
 import { ScanError } from './errors.js';
 import { bandFor, scoreReport } from './score.js';
@@ -18,6 +18,7 @@ import { bandFor, scoreReport } from './score.js';
  * @property {string} id
  * @property {string} title
  * @property {number} weight
+ * @property {boolean} applicable  false when the site type skips this check; score is then null
  * @property {number | null} score  0 to 4
  * @property {string} rationale
  * @property {string[]} evidence
@@ -27,7 +28,7 @@ import { bandFor, scoreReport } from './score.js';
  * @property {string} id
  * @property {string} title
  * @property {string} description
- * @property {number} weight
+ * @property {number} weight  the weight used, after the site type's overrides
  * @property {number | null} score  0 to 100
  * @property {{ id: string, label: string }} band
  * @property {number} assessed
@@ -40,13 +41,14 @@ import { bandFor, scoreReport } from './score.js';
  * @property {string} scannedAt  ISO timestamp
  * @property {string} rubricHash
  * @property {string} model
+ * @property {{ id: string, title: string }} siteType  the kind of site the scan was scored as
  * @property {number | null} overall  0 to 100
  * @property {{ id: string, label: string }} band
  * @property {ReportDimension[]} dimensions
  * @property {{ fetches: number, llmCalls: number, tokens: { input: number, output: number, thoughts: number }, elapsedMs: number, sampledPages: string[], problems: string[] }} stats
  */
 
-export const REPORT_VERSION = 1;
+export const REPORT_VERSION = 2;
 
 /**
  * @typedef {Object} ScanProgress
@@ -68,11 +70,14 @@ export const REPORT_VERSION = 1;
  * @param {AbortSignal} [options.signal]
  * @param {(ms: number) => Promise<void>} [options.sleep]
  * @param {() => Date} [options.now]
+ * @param {string} [options.siteType]  site type id from the rubric; the default site type when absent or unknown
  * @returns {Promise<Report>}
  */
-export async function runScan({ url, provider, fetchImpl, onProgress = () => {}, onCheck = () => {}, rubric = bundledRubric, signal, sleep, now = () => new Date() }) {
+export async function runScan({ url, provider, fetchImpl, onProgress = () => {}, onCheck = () => {}, rubric = bundledRubric, signal, sleep, now = () => new Date(), siteType: siteTypeId }) {
   const started = Date.now();
   const target = normaliseTarget(url);
+  const siteType = (siteTypeId && rubric.siteTypeById.get(siteTypeId)) || rubric.defaultSiteType;
+  const skipped = new Set(siteType.skip);
 
   const { evidence, stats: collectStats } = await collectEvidence({
     url: target.url,
@@ -90,11 +95,16 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
 
   for (const dimension of rubric.dimensions) {
     const label = dimension.progress ?? `Assessing ${dimension.title.toLowerCase()}...`;
-    const checkLabels = dimension.checks.map((c) => ({ id: c.id, label: c.progress }));
+    const checkLabels = applicableChecks(dimension, siteType).map((c) => ({ id: c.id, label: c.progress }));
     onProgress({ phase: 'assess', step: dimension.id, label, status: 'start', checks: checkLabels });
+    if (checkLabels.length === 0) {
+      // every check in this dimension is skipped for this kind of site: no call, no score
+      onProgress({ phase: 'assess', step: dimension.id, label, status: 'done', checks: checkLabels });
+      continue;
+    }
     let outcome;
     try {
-      outcome = await assessDimension({ dimension, evidence, provider, calls, signal, sleep });
+      outcome = await assessDimension({ dimension, evidence, provider, calls, signal, sleep, siteType });
     } catch (err) {
       throw toScanError(err);
     }
@@ -109,14 +119,14 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
     onProgress({ phase: 'assess', step: dimension.id, label, status: 'done', checks: checkLabels });
   }
 
-  const scores = scoreReport(rubric, resultsById);
+  const scores = scoreReport(rubric, resultsById, siteType);
   const dimensions = rubric.dimensions.map((d, i) => {
     const s = scores.dimensions[i];
     return {
       id: d.id,
       title: d.title,
       description: d.description,
-      weight: d.weight,
+      weight: s.weight,
       score: s.score,
       band: bandFor(s.score),
       assessed: s.assessed,
@@ -127,6 +137,7 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
           id: c.id,
           title: c.title,
           weight: c.weight,
+          applicable: !skipped.has(c.id),
           score: r?.score ?? null,
           rationale: r?.rationale ?? '',
           evidence: r?.evidence ?? [],
@@ -142,6 +153,7 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
     scannedAt: now().toISOString(),
     rubricHash: await rubricHash(),
     model: provider.model,
+    siteType: { id: siteType.id, title: siteType.title },
     overall: scores.overall,
     band: bandFor(scores.overall),
     dimensions,

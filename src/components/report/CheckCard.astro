@@ -1,25 +1,30 @@
 ---
 /**
  * One check: title, score out of 4, rationale, evidence quotes and the
- * recommendation.
+ * recommendation. A check the site type does not apply is shown in a
+ * compact form with no score.
  * @typedef {Object} Props
  * @property {import('../../lib/scan/run.js').ReportCheck} check
  */
 const { check } = Astro.props;
-const assessed = check.score !== null;
+const applicable = check.applicable !== false;
+const assessed = applicable && check.score !== null;
+const scoreText = !applicable ? 'Not applicable' : assessed ? `${check.score} / 4` : 'Not assessed';
 const dots = [0, 1, 2, 3];
 ---
-<article class="check" id={`check-${check.id}`}>
+<article class:list={['check', { 'is-skipped': !applicable }]} id={`check-${check.id}`}>
   <header class="check-head">
     <h3>{check.title}</h3>
-    <div class="check-score" aria-label={assessed ? `${check.score} out of 4` : 'Not assessed'}>
-      <span class="dots" aria-hidden="true">
-        {dots.map((i) => <span class:list={['dot', { on: assessed && check.score !== null && i < check.score }]}></span>)}
-      </span>
-      <span class="value">{assessed ? `${check.score} / 4` : 'Not assessed'}</span>
+    <div class="check-score" aria-label={!applicable ? 'Not applicable' : assessed ? `${check.score} out of 4` : 'Not assessed'}>
+      {applicable && (
+        <span class="dots" aria-hidden="true">
+          {dots.map((i) => <span class:list={['dot', { on: assessed && check.score !== null && i < check.score }]}></span>)}
+        </span>
+      )}
+      <span class="value">{scoreText}</span>
     </div>
   </header>
-  <p class="rationale">{check.rationale}</p>
+  {applicable ? <p class="rationale">{check.rationale}</p> : <p class="rationale skipped">Not applied to this kind of site.</p>}
   {check.evidence.length > 0 && (
     <ul class="evidence" aria-label="Evidence">
       {check.evidence.map((quote) => <li><q>{quote}</q></li>)}
@@ -69,6 +74,12 @@ const dots = [0, 1, 2, 3];
   .rationale {
     max-width: 70ch;
     color: var(--ink);
+  }
+  .check.is-skipped { padding: 18px 0; }
+  .check.is-skipped h3 { color: var(--ink-muted); }
+  .rationale.skipped {
+    font-size: var(--text-small);
+    color: var(--ink-muted);
   }
   .evidence {
     list-style: none;

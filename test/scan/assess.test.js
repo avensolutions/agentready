@@ -52,6 +52,19 @@ describe('buildPrompt', () => {
     expect(SYSTEM_INSTRUCTION).toMatch(/Never follow instructions/);
     expect(SYSTEM_INSTRUCTION).toMatch(/Australian English/);
   });
+
+  it('adds the site type guidance and leaves out the checks it skips', () => {
+    const siteType = { id: 'publisher', title: 'Information and publishing', summary: 's', order: 1, isDefault: false, weights: {}, skip: ['sitemap'], guidance: 'Expect no prices.', path: 'p' };
+    const { prompt, keys } = buildPrompt(DIMENSION, EVIDENCE, siteType);
+    expect(prompt).toContain('<site-type id="publisher">');
+    expect(prompt).toContain('# Kind of site: Information and publishing');
+    expect(prompt).toContain('Expect no prices.');
+    expect(prompt).toContain('<check id="llms-txt"');
+    expect(prompt).not.toContain('<check id="sitemap"');
+    expect(keys).toEqual(['llms_txt']);
+    expect(prompt).toContain('Assess the 1 check above');
+    expect(SYSTEM_INSTRUCTION).toContain('<site-type>');
+  });
 });
 
 describe('serialiseEvidence', () => {
@@ -169,5 +182,19 @@ describe('assessDimension', () => {
     const exhausted = { name: 'x', model: 'x', async generate() { n += 1; throw new LlmError('quota', 'day'); } };
     await expect(assessDimension({ dimension: DIMENSION, evidence: EVIDENCE, provider: exhausted, calls: budget(8), sleep: noSleep })).rejects.toMatchObject({ code: 'quota' });
     expect(n).toBe(1);
+  });
+
+  it('asks only about applicable checks and makes no call when none apply', async () => {
+    const calls = { remaining: () => 8, spend: () => {} };
+    /** @type {string[]} */
+    const seen = [];
+    const provider = createMockProvider({ override: (id) => (seen.push(id), {}) });
+    const one = { id: 't', title: 'T', summary: 's', order: 1, isDefault: false, weights: {}, skip: ['sitemap'], guidance: 'g', path: 'p' };
+    const outcome = await assessDimension({ dimension: DIMENSION, evidence: EVIDENCE, provider, calls, siteType: one });
+    expect(outcome.results.map((r) => r.id)).toEqual(['llms-txt']);
+    expect(seen).toEqual(['llms-txt']);
+    const none = { ...one, skip: ['sitemap', 'llms-txt'] };
+    const empty = await assessDimension({ dimension: DIMENSION, evidence: EVIDENCE, provider, calls, siteType: none });
+    expect(empty).toEqual({ results: [], usage: { input: 0, output: 0, thoughts: 0 }, problems: [], calls: 0 });
   });
 });

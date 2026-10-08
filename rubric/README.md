@@ -1,6 +1,6 @@
 # Rubric
 
-The rubric is the whole of what agentready measures. Dimensions, checks, weights and scoring levels live here as markdown with YAML frontmatter and are bundled into the Worker at build time. Changing a dimension, a check, a weight or a scoring level is a markdown edit. Code changes are needed only when a check needs an evidence key that no collector produces yet.
+The rubric is the whole of what agentready measures. Dimensions, checks, site types, weights and scoring levels live here as markdown with YAML frontmatter and are bundled into the Worker at build time. Changing a dimension, a check, a site type, a weight or a scoring level is a markdown edit. Code changes are needed only when a check needs an evidence key that no collector produces yet.
 
 The build validates every file and fails on the first invalid rubric, listing all problems. Run the same check on its own with:
 
@@ -72,13 +72,43 @@ The body is the instruction given to the assessor together with the named eviden
 
 Write instructions in plain Australian English, matter-of-fact, without sales language. The assessor is told separately that site content is untrusted data, so the instructions can concentrate on what to look for.
 
+## Site types
+
+One file per kind of site in `site-types/<id>.md`. The person starting a scan picks one on the landing page. It changes how the rubric is applied without changing the checks themselves: dimension weights can be overridden, checks that make no sense for that kind of site are skipped, and the body is given to the assessor as guidance.
+
+```markdown
+---
+id: shop
+title: Online shop
+summary: People buy products on the site. A catalogue with prices, a cart and a checkout.
+order: 2
+weights: { discovery: 15, retrievability: 20, structured-data: 25, answerability: 25, actionability: 15 }
+skip: [llms-full-txt, openapi-description]
+---
+Guidance to the assessor on how to read the checks for this kind of site.
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `id` | yes | Lower-case kebab-case, unique, equal to the file name. Sent as `type` to the scan endpoint and recorded on the report. |
+| `title` | yes | The option label on the landing page and the label on the report. |
+| `summary` | yes | One line shown under the option. |
+| `order` | yes | Integer, unique across site types. Display order of the options. |
+| `default` | no | `true` on exactly one site type: the option preselected on the landing page and the type used when a request names none. |
+| `weights` | no | Flow map of dimension id to weight. The named dimensions use these weights for this kind of site; the others keep the weight in their own file. |
+| `skip` | no | Flow list of check ids not assessed for this kind of site. Skipped checks are not sent to the assessor, are left out of the scores entirely and appear on the report as not applicable. A dimension whose checks are all skipped is not assessed. |
+
+The body is given to the assessor with the dimension and its checks, so it can say what a prospective customer of this kind of site would ask and what not to expect. The report records the site type, and the site type files are part of the rubric hash.
+
+If the directory is empty the scan runs with a built-in general type: every check applies and the dimension weights are used as written.
+
 ## Scoring
 
 Scoring is done in code, never by the assessor.
 
 - A check scores 0 to 4.
-- A dimension scores 0 to 100: the weighted mean of its check scores divided by 4, times 100.
-- The overall score is 0 to 100: the weighted mean of the dimension scores.
+- A dimension scores 0 to 100: the weighted mean of its applicable check scores divided by 4, times 100.
+- The overall score is 0 to 100: the weighted mean of the dimension scores, using the site type's dimension weights where it sets them.
 
 A check whose evidence could not be collected (for example the site was unreachable for that fetch) is still assessed on what is there; the instructions describe how to treat missing evidence.
 
@@ -88,9 +118,10 @@ Only a small YAML subset is accepted, so that a typo fails the build rather than
 
 - `key: value` with a bare string, a quoted string, a number, `true` or `false`
 - `key: [a, b, c]` flow lists of those
+- `key: { a: 1, b: c }` flow maps of those
 - blank lines and `#` comment lines
 
-Block lists, nested maps, multi-line strings and duplicate keys are errors.
+Block lists, nested lists or maps, multi-line strings and duplicate keys are errors.
 
 ## Evidence keys
 
@@ -121,3 +152,9 @@ Each collector produces exactly one evidence key. A check may only name keys in 
 
 1. Create `dimensions/<id>.md` with a unique `order`.
 2. Add at least one check that names it. A dimension with no checks fails validation.
+
+## Adding a site type
+
+1. Create `site-types/<id>.md` with the fields above and a unique `order`.
+2. Name only existing dimension ids in `weights` and existing check ids in `skip`.
+3. Run `node scripts/validate-rubric.js` or `npm run build`. The landing page lists the site types from the rubric at build time.

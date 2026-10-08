@@ -63,7 +63,7 @@ describe('scoreReport', () => {
     for (const c of rubric.dimensionById.get('discovery').checks) scores[c.id] = 3;
     const report = scoreReport(rubric, results(scores));
     expect(report.overall).toBe(75);
-    expect(report.dimensions.find((d) => d.id === 'actionability')).toEqual({ id: 'actionability', score: null, assessed: 0, total: 4 });
+    expect(report.dimensions.find((d) => d.id === 'actionability')).toEqual({ id: 'actionability', weight: 15, score: null, assessed: 0, total: 4 });
     expect(scoreReport(rubric, results({})).overall).toBe(null);
   });
 });
@@ -80,5 +80,31 @@ describe('bandFor', () => {
     expect(bandFor(24).id).toBe('poor');
     expect(bandFor(0).id).toBe('poor');
     expect(bandFor(null)).toEqual({ id: 'none', label: 'Not assessed' });
+  });
+});
+
+describe('scoreReport with a site type', () => {
+  const publisher = rubric.siteTypeById.get('publisher');
+
+  it('uses the site type weights and leaves skipped checks out of the means', () => {
+    /** @type {Record<string, number | null>} */
+    const scores = {};
+    for (const c of rubric.checks) scores[c.id] = 4;
+    for (const id of publisher.skip) scores[id] = 0; // would drag the means down if counted
+    const report = scoreReport(rubric, results(scores), publisher);
+    expect(report.dimensions.every((d) => d.score === 100)).toBe(true);
+    expect(report.overall).toBe(100);
+    expect(Object.fromEntries(report.dimensions.map((d) => [d.id, d.weight]))).toEqual(publisher.weights);
+    const answerability = report.dimensions.find((d) => d.id === 'answerability');
+    expect(answerability.total).toBe(rubric.dimensionById.get('answerability').checks.length - 1);
+  });
+
+  it('combines dimensions by the site type weights', () => {
+    /** @type {Record<string, number | null>} */
+    const scores = {};
+    for (const c of rubric.checks) scores[c.id] = c.dimension === 'retrievability' ? 4 : 0;
+    // retrievability weighs 30 of 100 for a publisher and 25 of 100 as written
+    expect(scoreReport(rubric, results(scores), publisher).overall).toBe(30);
+    expect(scoreReport(rubric, results(scores)).overall).toBe(25);
   });
 });

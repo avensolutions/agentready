@@ -102,7 +102,7 @@ Sources: https://developers.cloudflare.com/workers/runtime-apis/request/, https:
 - `redirect` defaults to `follow` for a new `Request`. In `follow` mode all request headers are forwarded to the redirect target even on a different host. agentready uses `redirect: 'manual'` and re-validates every hop, which the safety rules require anyway.
 - The runtime's follow cap is 20 redirects (from the workerd source, not documented). agentready caps at 5 per fetch and counts each hop against the scan budget.
 - There is no enforced response size limit, only the 128 MB isolate memory. Read bodies as streams and stop at a byte cap rather than calling `.text()` on an unknown body.
-- `cf.cacheTtl` and `cf.cacheEverything` work on GET and HEAD to any origin and go through the Worker's own zone cache, which does not replicate between data centres. Not needed for agentready since reports are cached in KV.
+- `cf.cacheTtl` and `cf.cacheEverything` work on GET and HEAD to any origin and go through the Worker's own zone cache, which does not replicate between data centres. Not used by agentready: every scan is live, and KV holds the finished report only for the report page.
 
 ## Browser Run (formerly Browser Rendering)
 
@@ -196,7 +196,7 @@ Derived from the numbers above. The code enforces these as constants and the tes
 | --- | --- | --- |
 | Target-site fetches (robots, sitemap, llms.txt, llms-full.txt, home page, sampled pages, markdown alternates, API and MCP probes) | about 17 | 24 including redirect hops |
 | LLM calls (one per dimension) | 5 | 8 including retries |
-| KV operations (cache read, report write) | 2 | 2 |
+| KV write of the finished report | 1 | 1 |
 | Turnstile verification | 1 | 1 |
 | Total subrequests | about 25 | 35, leaving headroom under 50 |
 | Bytes read per fetched page | home 384 KB, sampled pages 192 KB, text files 64 KB | hard stop, body streamed |

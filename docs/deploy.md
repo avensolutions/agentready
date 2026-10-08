@@ -62,7 +62,7 @@ If the deploy is rejected because the rate limiting binding is not available on 
 
 ## 6. Check it works
 
-- Run a scan of a public site. The report should open at `/r/<id>` and a second scan of the same address should return at once with the stored report.
+- Run a scan of a public site. The report should open at `/r/<id>`, and a second scan of the same address should run in full again and replace the stored report (every scan is live).
 - `npx wrangler tail` streams the Worker's logs while you test.
 - `npx wrangler kv key list --binding REPORTS --remote` lists stored reports.
 - The dashboard shows requests, CPU time and errors under Workers and Pages. CPU time per request should sit well under 10 ms; if it does not, see the CPU note in `docs/limits.md`.
@@ -84,7 +84,7 @@ Cloudflare creates the DNS record and the certificate. Add the hostname to the T
 
 ## Updating the rubric
 
-Edit the markdown under `rubric/`, run `npm run validate` (or `npm run build`, which runs it), then deploy. Stored reports carry the hash of the rubric they were scored against; a repeat scan after a rubric change runs again instead of serving the stored report.
+Edit the markdown under `rubric/`, run `npm run validate` (or `npm run build`, which runs it), then deploy. Stored reports carry the hash of the rubric they were scored against, shown on the report page, so a report can be read against the rubric that produced it.
 
 ## Rolling back
 
