@@ -52,7 +52,7 @@ Sources: https://developers.cloudflare.com/kv/platform/limits/ (page dated 2026-
 
 Notes:
 
-- One write per completed scan means at most 1,000 scans a day on KV alone. The Gemini quota (below) is the tighter limit.
+- Each completed scan writes one report. Gemini alert cooldown markers also consume writes from this allowance; see the alert budget below. The Gemini quota (below) is normally the tighter limit.
 - Writes can take up to 60 s to become visible in other locations. The scan writes the report and then redirects the same browser to `/r/[id]`, which normally reads from the same location, but the report page must handle a miss gracefully for the first minute.
 - Two writes to the same key within one second return a 429. The scan endpoint must not write the same report key twice in quick succession (for example from a retried request).
 
@@ -198,9 +198,21 @@ Derived from the numbers above. The code enforces these as constants and the tes
 | LLM calls (one per dimension) | 5 | 8 including retries |
 | KV write of the finished report | 1 | 1 |
 | Turnstile verification | 1 | 1 |
-| Total subrequests | about 25 | 35, leaving headroom under 50 |
+| Gemini alerts | 0 when no limit occurs | 6: at most two alerts, each with a KV read, email request and KV write |
+| Total subrequests | about 25 without alerts | 40 including alerts, leaving headroom under 50 |
 | Bytes read per fetched page | home 384 KB, sampled pages 192 KB, text files 64 KB | hard stop, body streamed |
 | Evidence sent to the LLM per scan | about 50k tokens across all calls | fits several scans a minute inside 250k TPM |
 | Wall time | typically 20 to 40 s | 90 s, then the scan is failed |
 | Scans a day at 5 LLM calls each | about 80 to 100 on Flash-Lite | quota is per model per project |
 | CPU time | to be measured | 10 ms |
+
+## Gemini alert budget
+
+Checked on 2026-10-09 against [Email Service pricing](https://developers.cloudflare.com/email-service/platform/pricing/), [destination addresses](https://developers.cloudflare.com/email-service/configuration/email-routing-addresses/), [KV limits](https://developers.cloudflare.com/kv/platform/limits/), [KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/), [Worker subrequests](https://developers.cloudflare.com/workers/platform/limits/#subrequests) and [waitUntil](https://developers.cloudflare.com/workers/runtime-apis/context/#waituntil).
+
+- Email to a verified destination is free on all plans and does not consume Email Sending's daily or monthly sending allowance. Arbitrary recipients require Workers Paid and are outside this setup.
+- The handler schedules at most one rate-limit alert and one daily-quota alert per scan, even if Gemini is retried. Each alert adds at most three subrequests. The conservative scan budget is 24 target fetches + 8 LLM calls + 1 Turnstile + 1 report write + 6 alert operations = 40, below the Workers Free limit of 50.
+- Successful alerts write one cooldown marker to the existing `REPORTS` KV namespace. The one-hour cooldown normally limits each configured model to 48 marker writes per day across both alert types, in addition to report writes. This is not a strict global maximum: KV propagation and concurrent requests can cause duplicates. KV remains limited to 1,000 writes per day and one write per second to a key on the free plan.
+- No alert KV reads or writes occur on a scan without a Gemini limit. Repeated failures can consume KV reads on new Worker instances. The free allowance is 100,000 reads per day.
+- Email requests have a five-second timeout, including reading the response, and run through `waitUntil`. Workers allow up to 30 seconds of background work after the response ends. Delivery is best effort; failures are logged and do not interrupt the user response.
+- Alerts use Google's actual 429 responses rather than assuming a fixed free quota. [Gemini quotas](https://ai.google.dev/gemini-api/docs/rate-limits) vary by project and model; daily request quotas reset at midnight Pacific time.

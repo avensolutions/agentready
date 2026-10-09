@@ -113,7 +113,7 @@ describe('runScan', () => {
   it('turns a quota error into a clear scan error', async () => {
     /** @type {import('../../src/lib/llm/index.js').LlmProvider} */
     const exhausted = { name: 'x', model: 'x', async generate() { throw new LlmError('quota', 'day'); } };
-    await expect(runScan({ url: `${ORIGIN}/`, provider: exhausted, fetchImpl: site })).rejects.toMatchObject({ code: 'llm-quota', message: expect.stringContaining('daily allowance') });
+    await expect(runScan({ url: `${ORIGIN}/`, provider: exhausted, fetchImpl: site })).rejects.toMatchObject({ code: 'llm-quota', message: expect.stringContaining('daily assessment allowance') });
   });
 
   it('rejects an unsafe target before fetching anything', async () => {

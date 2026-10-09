@@ -31,4 +31,4 @@ export const BUDGET = Object.freeze({
 });
 
 /** Subrequests a scan can make in the worst case, for the tests. */
-export const WORST_CASE_SUBREQUESTS = BUDGET.maxFetches + BUDGET.maxLlmCalls + 1 /* KV */ + 1; /* Turnstile */
+export const WORST_CASE_SUBREQUESTS = BUDGET.maxFetches + BUDGET.maxLlmCalls + 1 /* report KV */ + 1 /* Turnstile */ + 6; /* two alerts: KV read, email, KV write */

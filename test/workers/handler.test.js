@@ -4,6 +4,7 @@ import { rubric, rubricHash } from '../../src/lib/rubric/index.js';
 import { errorPayload, handleScan } from '../../src/lib/scan/handler.js';
 import { reportIdFor } from '../../src/lib/scan/report-id.js';
 import { parseEventStream } from '../../src/lib/scan/sse.js';
+import { withLimitAlerts } from '../../src/lib/llm/alerts.js';
 
 const ORIGIN = 'https://acme.example.com';
 const HTML = '<!doctype html><html><head><title>Acme</title></head><body><main><h1>Acme</h1><p>Widgets.</p><a href="/about">About</a></main></body></html>';
@@ -136,6 +137,36 @@ describe('handleScan', () => {
     expect(events).toEqual([{ event: 'error', data: { code: 'rate-limited', message: expect.stringContaining('Too many checks') } }]);
     expect(fetched).toBe(0);
     expect(verified).toBe(0);
+  });
+
+  it.each([
+    ['quota', 'llm-quota', 'daily assessment allowance'],
+    ['rate-limit', 'llm-rate-limit', 'wait a few minutes'],
+  ])('streams a graceful %s message without saving a report or waiting for email', async (kind, code, message) => {
+    const tasks = [];
+    let finishEmail;
+    let attempts = 0;
+    const stored = [];
+    const provider = withLimitAlerts({
+      name: 'gemini', model: 'gemini-test',
+      async generate() { attempts += 1; throw new LlmError(kind, 'private details', { retryAfterMs: 60_000 }); },
+    }, {
+      notify: () => new Promise((resolve) => { finishEmail = resolve; }),
+      waitUntil: (task) => tasks.push(task),
+    });
+    const events = await run(new Request(`https://agentready.test/api/scan?url=${ORIGIN}/`), {
+      provider,
+      store: { get: async () => null, put: async (report) => void stored.push(report) },
+    });
+    expect(events.at(-1)).toMatchObject({ event: 'error', data: { code, message: expect.stringContaining(message) } });
+    expect(events.at(-1).data.message).toContain('Your scan has not been saved.');
+    expect(JSON.stringify(events)).not.toContain('private details');
+    expect(events.some((event) => event.event === 'done')).toBe(false);
+    expect(stored).toEqual([]);
+    expect(attempts).toBe(1);
+    expect(tasks).toHaveLength(1);
+    finishEmail();
+    await Promise.all(tasks);
   });
 
   it('requires a passing Turnstile token, passed from the query or the body with the client ip', async () => {

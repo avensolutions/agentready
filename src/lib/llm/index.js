@@ -70,6 +70,7 @@ export async function withRetry(fn, { attempts = 3, baseMs = 1000, maxDelayMs = 
     } catch (err) {
       if (!(err instanceof LlmError) || !err.retryable || attempt >= attempts) throw err;
       const hinted = typeof err.details.retryAfterMs === 'number' ? err.details.retryAfterMs : 0;
+      if (hinted > maxDelayMs) throw err;
       const backoff = baseMs * 2 ** (attempt - 1) * (0.5 + random());
       const delay = Math.min(maxDelayMs, Math.max(backoff, hinted));
       onRetry?.(attempt, err);

@@ -149,13 +149,15 @@ export function classifyHttpError(status, text, switchOutputMode) {
   } catch {
     body = null;
   }
-  const message = body?.error?.message ?? text.slice(0, 300);
+  const message = typeof body?.error?.message === 'string' ? body.error.message : text.slice(0, 300);
   const details = Array.isArray(body?.error?.details) ? body.error.details : [];
 
   if (status === 429) {
-    const quota = details.find((d) => typeof d?.['@type'] === 'string' && d['@type'].endsWith('QuotaFailure'));
-    const quotaIds = (quota?.violations ?? []).map((v) => String(v?.quotaId ?? ''));
-    const perDay = quotaIds.some((id) => /PerDay|Daily/i.test(id)) || /per day|daily/i.test(message);
+    const violations = details
+      .filter((d) => typeof d?.['@type'] === 'string' && d['@type'].endsWith('QuotaFailure'))
+      .flatMap((d) => Array.isArray(d.violations) ? d.violations : []);
+    const quotaIds = violations.map((v) => String(v?.quotaId ?? '')).filter(Boolean);
+    const perDay = violations.some((v) => /PerDay|Daily|per_day/i.test(`${v?.quotaId ?? ''} ${v?.quotaMetric ?? ''}`)) || /per day|daily/i.test(message);
     const retryInfo = details.find((d) => typeof d?.['@type'] === 'string' && d['@type'].endsWith('RetryInfo'));
     const retryAfterMs = parseRetryDelay(retryInfo?.retryDelay);
     if (perDay) return new LlmError('quota', 'The assessment service has used its daily allowance.', { quotaIds, message });

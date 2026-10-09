@@ -124,6 +124,20 @@ describe('createGeminiProvider', () => {
     }
   });
 
+  it('handles malformed quota details and finds daily limits across all violations', async () => {
+    const cases = [
+      [{ message: {}, details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: {} }] }, 'rate-limit'],
+      [{ details: [
+        { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'RequestsPerMinute' }] },
+        { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [null, { quotaMetric: 'requests_per_day' }] },
+      ] }, 'quota'],
+    ];
+    for (const [error, code] of cases) {
+      const provider = createGeminiProvider({ apiKey: 'k', model: 'm', fetchImpl: async () => Response.json({ error }, { status: 429 }) });
+      await expect(provider.generate(REQUEST)).rejects.toMatchObject({ code });
+    }
+  });
+
   it('strips code fences and ignores thought parts', async () => {
     const api = fakeGemini([
       () => Response.json({ candidates: [{ content: { parts: [{ text: 'thinking...', thought: true }, { text: '```json\n{"ok":false}\n```' }] }, finishReason: 'STOP' }] }),
@@ -157,6 +171,16 @@ describe('createProviderFromEnv', () => {
 });
 
 describe('withRetry', () => {
+  it('stops when the provider delay exceeds the retry window instead of retrying too early', async () => {
+    let attempts = 0;
+    const delays = [];
+    await expect(withRetry(async () => {
+      attempts += 1;
+      throw new LlmError('rate-limit', 'busy', { retryAfterMs: 60_000 });
+    }, { sleep: async (ms) => void delays.push(ms) })).rejects.toMatchObject({ code: 'rate-limit' });
+    expect(attempts).toBe(1);
+    expect(delays).toEqual([]);
+  });
   it('retries retryable errors with backoff and gives up after the attempts', async () => {
     /** @type {number[]} */
     const delays = [];

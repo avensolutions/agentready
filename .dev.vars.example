@@ -11,3 +11,10 @@ TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 # Use the deterministic mock assessor instead of Gemini (no key needed).
 # Remove or set to gemini to call the real model.
 LLM_PROVIDER=mock
+
+# Optional Gemini limit alerts. Leave blank to avoid sending email locally.
+# The recipient must be a verified Cloudflare Email Routing destination.
+ALERT_EMAIL_ACCOUNT_ID=
+ALERT_EMAIL_FROM=
+ALERT_EMAIL_TO=
+ALERT_EMAIL_API_TOKEN=

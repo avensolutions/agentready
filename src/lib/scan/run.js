@@ -172,8 +172,8 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
 function toScanError(err) {
   if (err instanceof ScanError) return err;
   if (err instanceof LlmError) {
-    if (err.code === 'quota') return new ScanError('llm-quota', 'The assessment service has used its daily allowance. Please try again tomorrow.', { cause: err.code });
-    if (err.code === 'rate-limit') return new ScanError('llm-quota', 'The assessment service is busy. Please try again in a few minutes.', { cause: err.code });
+    if (err.code === 'quota') return new ScanError('llm-quota', 'Scans are temporarily unavailable because our daily assessment allowance has been reached. Please try again after the allowance resets. Your scan has not been saved.', { cause: err.code });
+    if (err.code === 'rate-limit') return new ScanError('llm-rate-limit', 'The assessment service is receiving too many requests. Please wait a few minutes and try again. Your scan has not been saved.', { cause: err.code });
     if (err.code === 'config') return new ScanError('internal', 'The assessment service is not configured.', { cause: err.code });
     return new ScanError('llm', `The assessment could not be completed: ${err.message}`, { cause: err.code });
   }
