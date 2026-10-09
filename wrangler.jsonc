@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agentready",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  // The highest date the workerd bundled with @cloudflare/vitest-pool-workers
+  // supports. Tests and production share it so behaviour cannot drift; bump
+  // both when the pool updates.
+  "compatibility_date": "2026-08-22",
+  // nodejs_compat is on by default for compatibility dates from 2026-08-04.
+  // global_fetch_strictly_public makes fetch() to the parent site behave like
+  // any public request (see docs/limits.md).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "GEMINI_MODEL": "gemini-3.5-flash-lite",
+    "REPORT_TTL_DAYS": "7"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "REPORTS",
+      // Local dev simulates the namespace under .wrangler/state. Replace with
+      // the real id from `npx wrangler kv namespace create REPORTS` before deploy.
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ],
+  // Per-IP brake on the scan endpoint: 6 scan requests per 60 seconds.
+  // Counted per Cloudflare location; Turnstile is the main gate.
+  "ratelimits": [
+    {
+      "name": "SCAN_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ]
+  // Custom domain, once theoverstorygroup.com is a zone in this account:
+  // "routes": [{ "pattern": "agentready.theoverstorygroup.com", "custom_domain": true }]
+}

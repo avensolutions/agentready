@@ -1,0 +1,39 @@
+---
+import { site } from '../lib/site.js';
+const workLinks = site.parent.links.slice(0, 3);
+const firmLinks = site.parent.links.slice(3);
+---
+<footer class="footer">
+  <div class="footer-inner">
+    <div>
+      <a class="wordmark" href={site.parent.url}>{site.parent.name}</a>
+      <p class="footer-address">
+        {site.parent.tagline}<br />
+        {site.parent.location}<br />
+        <a href={site.parent.url}>theoverstorygroup.com</a>
+      </p>
+    </div>
+    <div>
+      <h4>Work with us</h4>
+      <ul>
+        {workLinks.map((link) => (
+          <li><a href={link.href}>{link.label}</a></li>
+        ))}
+      </ul>
+    </div>
+    <div>
+      <h4>Firm</h4>
+      <ul>
+        {firmLinks.map((link) => (
+          <li><a href={link.href}>{link.label}</a></li>
+        ))}
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <div class="footer-base-inner">
+      <span>&copy; {site.parent.legal}. {site.name} is a tool from Overstory Group.</span>
+      <a href="#main">Back to top</a>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,17 @@
+---
+import { site } from '../lib/site.js';
+const isHome = Astro.url.pathname === '/';
+---
+<header class="nav">
+  <div class="nav-inner">
+    <div class="nav-left">
+      <a class="wordmark" href={site.parent.url}>{site.parent.name}</a>
+      <nav class="nav-links" aria-label="agentready">
+        <a href="/" aria-current={isHome ? 'page' : undefined}>{site.name}</a>
+      </nav>
+    </div>
+    <div class="nav-right">
+      <a class="btn btn-quiet btn-sm" href={site.parent.contactUrl}>Start a conversation</a>
+    </div>
+  </div>
+</header>
