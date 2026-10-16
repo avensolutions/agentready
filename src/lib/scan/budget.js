@@ -23,8 +23,8 @@ export const BUDGET = Object.freeze({
   }),
   /** Concurrent target-site requests, under the 6 connection limit. */
   concurrency: 5,
-  /** LLM calls per scan: one per dimension, plus retries up to this cap. */
-  maxLlmCalls: 8,
+  /** LLM calls per scan: one for the business summary and one per dimension, plus retries up to this cap. */
+  maxLlmCalls: 9,
   /** Whole scan, after which it is failed with a clear message. */
   scanTimeoutMs: 90_000,
   userAgent: 'agentready/1.0 (+https://agentready.theoverstorygroup.com)',

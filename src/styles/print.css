@@ -79,6 +79,16 @@
   .summary { margin-top: 8mm; break-inside: avoid; }
   .summary li { padding: 3mm 0; }
 
+  .understanding {
+    break-inside: avoid;
+    margin-top: 0;
+    padding: 8mm 0 0;
+  }
+  .understanding h2 { font-size: 16pt; }
+  .understanding-text { font-size: 11pt; }
+  .understanding-unclear { font-size: 10pt; }
+  .understanding-note { font-size: 9pt; }
+
   .dimension {
     break-before: page;
     padding: 0 0 4mm;

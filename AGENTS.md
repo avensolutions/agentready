@@ -26,9 +26,10 @@ A scan is a fixed pipeline, not an open-ended agent loop.
 
 1. Validate and normalise the URL (`src/lib/safety/`).
 2. Collectors (`src/lib/collectors/`) fetch evidence deterministically: robots.txt, sitemap, llms.txt, llms-full.txt, home page HTML, a small sample of linked pages, response headers, markdown alternates, structured data. Each collector returns one named evidence key.
-3. Checks are markdown files. The prose of a check is the instruction given to the LLM, which judges the evidence keys the check names and returns structured JSON: score, rationale, evidence quotes, recommendation. Use the Gemini structured output (response schema) feature and validate the result in code.
-4. Scoring (`src/lib/scan/score.js`) is done in code, never by the LLM. Check scores and weights roll up to dimension scores (0-100), and dimension weights roll up to the overall score (0-100). The site type chosen for the scan (`rubric/site-types/`) can override dimension weights and skip checks that do not apply to that kind of site; skipped checks are not sent to the LLM and are left out of the scores.
-5. The report is stored in KV and rendered at `/r/[id]`.
+3. The business summary (`src/lib/scan/summary.js`): one LLM call reads the home page text as an agent would and returns what it understood the business to be, plus what the text left unclear. It is not scored. It is shown at the top of the report so the site owner can see whether an agent reading their landing page gets the right idea.
+4. Checks are markdown files. The prose of a check is the instruction given to the LLM, which judges the evidence keys the check names and returns structured JSON: score, rationale, evidence quotes, recommendation. Use the Gemini structured output (response schema) feature and validate the result in code.
+5. Scoring (`src/lib/scan/score.js`) is done in code, never by the LLM. Check scores and weights roll up to dimension scores (0-100), and dimension weights roll up to the overall score (0-100). The site type chosen for the scan (`rubric/site-types/`) can override dimension weights and skip checks that do not apply to that kind of site; skipped checks are not sent to the LLM and are left out of the scores.
+6. The report is stored in KV and rendered at `/r/[id]`.
 
 Routes:
 

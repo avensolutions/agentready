@@ -1,6 +1,6 @@
 # agentready
 
-agentready takes a website address, assesses the site for agent experience (AX, also called AEO) and returns an overall score with a score per dimension, findings and recommendations. It is a tool from [Overstory Group](https://theoverstorygroup.com/), served at `agentready.theoverstorygroup.com`.
+agentready takes a website address, assesses the site for agent experience (AX, also called AEO) and returns an overall score with a score per dimension, findings and recommendations, along with a short account of what an agent reading the home page takes the business to be. It is a tool from [Overstory Group](https://theoverstorygroup.com/), served at `agentready.theoverstorygroup.com`.
 
 ## Stack
 
