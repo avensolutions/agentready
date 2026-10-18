@@ -94,6 +94,7 @@ Sources: https://developers.cloudflare.com/workers/configuration/routing/custom-
 - A custom domain such as `agentready.theoverstorygroup.com` needs `theoverstorygroup.com` to be an active zone in the same Cloudflare account, with no existing CNAME on that hostname. Cloudflare creates the DNS record and an Advanced Certificate for the hostname at no charge. Config: `"routes": [{ "pattern": "agentready.theoverstorygroup.com", "custom_domain": true }]`.
 - Until the zone is on Cloudflare the Worker can run on its `workers.dev` subdomain.
 - Workers Builds (git-connected deploys from GitHub or GitLab) on the free plan: 3,000 build minutes a month, 1 concurrent build, 20 minute timeout.
+- Workers Previews (checked 2026-10-18 against https://developers.cloudflare.com/workers/previews/): a Preview per branch under the same Worker, on `workers.dev` only, 100 Previews per Worker and 100 deployments per Preview on the free plan, oldest removed first. Previews take vars and bindings from the `previews` block and secrets from the Previews base config; they do not inherit production settings. Needs Wrangler 4.135 or later.
 
 ## fetch() from a Worker
 

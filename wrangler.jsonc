@@ -17,6 +17,10 @@
   "observability": {
     "enabled": true
   },
+  // Keeps workers.dev preview URLs on so Workers Builds can give every branch
+  // a Preview (see docs/deploy.md, "Branch previews"). Production itself stays
+  // on the custom domain once `workers_dev: false` and `routes` are set.
+  "preview_urls": true,
   "vars": {
     "GEMINI_MODEL": "gemini-3.5-flash-lite",
     "REPORT_TTL_DAYS": "7"
@@ -37,7 +41,29 @@
       "namespace_id": "1001",
       "simple": { "limit": 6, "period": 60 }
     }
-  ]
+  ],
+  // Branch previews. Workers Builds runs `wrangler preview` for every branch
+  // other than main and serves it at <branch>-agentready.<subdomain>.workers.dev.
+  // A Preview takes its vars and bindings from this block, not from the
+  // top-level settings, and its secrets from the Previews base config
+  // (`npx wrangler preview base-config secret put`). Preview scans store
+  // their reports in a separate namespace with a short TTL so they never
+  // appear on production report pages. The rate limiting binding is not
+  // part of a Preview; the scan endpoint runs unlimited without it and
+  // Turnstile remains the gate.
+  "previews": {
+    "vars": {
+      "GEMINI_MODEL": "gemini-3.5-flash-lite",
+      "REPORT_TTL_DAYS": "1"
+    },
+    "kv_namespaces": [
+      {
+        "binding": "REPORTS",
+        // Replace with the id from `npx wrangler kv namespace create REPORTS_PREVIEW`.
+        "id": "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
+      }
+    ]
+  }
   // Custom domain, once theoverstorygroup.com is a zone in this account:
   // "routes": [{ "pattern": "agentready.theoverstorygroup.com", "custom_domain": true }]
 }

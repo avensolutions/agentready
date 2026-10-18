@@ -38,6 +38,38 @@ Alerts are triggered by scan traffic when Gemini rejects a request. There is no 
 
 Edit the markdown under `rubric/`, run `npm run validate` (or `npm run build`, which runs it), then deploy. Stored reports carry the hash of the rubric they were scored against, shown on the report page, so a report can be read against the rubric that produced it.
 
+## Branch previews
+
+Cloudflare's equivalent of a Netlify deploy preview is a Workers Preview, built by Workers Builds. Once the Worker is connected to the GitHub repository, a push to `main` builds and deploys production, and a push to any other branch runs `npx wrangler preview`, which serves that branch at `<branch>-agentready.<subdomain>.workers.dev` and posts the link as a comment on the pull request. Both are on the free plan: 3,000 build minutes a month and up to 100 Previews per Worker (see [limits.md](limits.md)). Previews need Wrangler 4.135 or later, which `package.json` already pins above.
+
+A Preview does not inherit production settings. It takes its vars and bindings from the `previews` block in `wrangler.jsonc` and its secrets from the Previews base configuration, so set these up once before connecting the repository.
+
+1. Create a KV namespace for preview reports and put its id in `previews.kv_namespaces` in `wrangler.jsonc`, replacing `REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID`. Preview scans then never write to the production namespace, and their reports expire after a day.
+
+   ```sh
+   npx wrangler kv namespace create REPORTS_PREVIEW
+   ```
+
+2. Store the two secrets in the Previews base configuration. Every new Preview receives them; a change applies to Previews created afterwards, so re-run for an open branch with `npx wrangler preview secret put <NAME> --name <branch>` if needed. Previews share the production Gemini key, so preview scans spend the same free daily quota.
+
+   ```sh
+   npx wrangler preview base-config secret put GEMINI_API_KEY
+   npx wrangler preview base-config secret put TURNSTILE_SECRET_KEY
+   ```
+
+3. Turnstile only answers for hostnames on the widget. Either add the account's `workers.dev` subdomain to the production widget, or create a second widget for previews and use its secret in step 2 and its site key in step 4. The documented test keys also work and are the simplest choice while previews are only used by the team.
+
+4. In the dashboard open the `agentready` Worker, then **Settings -> Builds -> Connect**, pick the repository, set the production branch to `main`, the build command to `npm run build`, the deploy command to `npx wrangler deploy` and leave the preview command at its default `npx wrangler preview`. Add `PUBLIC_TURNSTILE_SITE_KEY` as a build variable; the landing page bakes it in at build time. The Worker name in the dashboard must match `name` in `wrangler.jsonc` or the build fails.
+
+5. Push a branch and open a pull request. The Preview URL appears under **Previews** on the Worker and in the pull request comment. The first build on an existing branch may need a push to trigger.
+
+Things to know:
+
+- Preview URLs are public by default. Put Cloudflare Access in front of them if that matters.
+- A Preview has no rate limiting binding. The scan endpoint runs without one (nothing is limited) and Turnstile remains the gate.
+- `preview_urls` must stay `true` in `wrangler.jsonc`; `workers_dev: false` keeps production off `workers.dev` without affecting Previews. Routes and the custom domain apply to production only.
+- Previews are cleaned up automatically from the least recently deployed once the limit is reached. To remove one by hand: `npx wrangler preview delete --name <branch>`.
+
 ## Rolling back
 
 ```bash

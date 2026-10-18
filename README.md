@@ -77,12 +77,11 @@ Replace `REPLACE_WITH_KV_NAMESPACE_ID` in `wrangler.jsonc` with the returned `id
 
 ### 3. Configure the subdomain
 
-Merge these top-level properties into `wrangler.jsonc`, replacing the commented-out `routes` example at the bottom. Add a comma after the existing `ratelimits` array. Keep the other settings and bindings.
+Merge these top-level properties into `wrangler.jsonc`, replacing the commented-out `routes` example at the bottom. Add a comma after the `previews` block. Keep the other settings and bindings.
 
 ```json
 {
   "workers_dev": false,
-  "preview_urls": false,
   "routes": [
     {
       "pattern": "agentready.theoverstorygroup.com",
@@ -92,7 +91,7 @@ Merge these top-level properties into `wrangler.jsonc`, replacing the commented-
 }
 ```
 
-Use the hostname exactly as shown, without `https://` or `/*`. This configuration serves the app on the custom domain and disables the additional `workers.dev` and version preview URLs. Commit the namespace ID and domain configuration; neither is a secret.
+Use the hostname exactly as shown, without `https://` or `/*`. This configuration serves the app on the custom domain only. Leave `preview_urls` set to `true`: it is what lets branch previews run on `workers.dev` (see [Branch previews](docs/deploy.md#branch-previews)) and does not expose production there. Commit the namespace ID and domain configuration; neither is a secret.
 
 ### 4. Prepare production keys
 
@@ -141,7 +140,7 @@ Cloudflare attaches the Custom Domain and provisions its DNS record and certific
 
 For subsequent releases, run `npm test` followed by `npm run deploy`. The deploy script validates the rubric, builds and runs Wrangler. Existing secrets are retained; only repeat `secret put` when changing a key. The build environment still needs `PUBLIC_TURNSTILE_SITE_KEY`.
 
-See [docs/deploy.md](docs/deploy.md) for verification, troubleshooting and rollback, and [Astro's Wrangler guide](https://docs.astro.build/en/guides/deploy/cloudflare/#how-to-deploy-with-wrangler) for the underlying deployment flow.
+See [docs/deploy.md](docs/deploy.md) for verification, troubleshooting, branch previews and rollback, and [Astro's Wrangler guide](https://docs.astro.build/en/guides/deploy/cloudflare/#how-to-deploy-with-wrangler) for the underlying deployment flow.
 
 ## Gemini limit alerts
 
