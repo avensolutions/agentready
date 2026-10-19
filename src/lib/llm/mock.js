@@ -17,7 +17,7 @@ function hash(s) {
 
 /**
  * @param {Object} [options]
- * @param {(checkId: string, request: import('./index.js').LlmRequest) => Partial<{ score: number, rationale: string, evidence: string[], recommendation: string }>} [options.override]
+ * @param {(checkId: string, request: import('./index.js').LlmRequest) => Record<string, unknown>} [options.override]  per check id, or 'summary' for the summary call; the returned fields replace the defaults
  * @param {number} [options.delayMs]
  * @returns {import('./index.js').LlmProvider}
  */
@@ -29,6 +29,15 @@ export function createMockProvider({ override, delayMs = 0 } = {}) {
       if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
       /** @type {any} */
       const schema = request.schema;
+      if (schema?.properties?.summary && !schema?.properties?.results) {
+        // the business summary call
+        const json = {
+          summary: 'Mock summary of the business. No model was called; this text stands in for what a reader would take from the home page.',
+          unclear: 'Mock note on what the home page does not make clear.',
+          ...(override ? override('summary', request) : {}),
+        };
+        return { json, model: 'mock-1', usage: { input: Math.round(request.prompt.length / 4), output: 120, thoughts: 0 } };
+      }
       /** @type {string[]} */
       const ids = schema?.properties?.results?.items?.properties?.check?.enum ?? [];
       const results = ids.map((id) => ({

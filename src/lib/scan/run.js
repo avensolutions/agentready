@@ -6,6 +6,7 @@ import { applicableChecks, assessDimension } from './assess.js';
 import { BUDGET } from './budget.js';
 import { ScanError } from './errors.js';
 import { bandFor, scoreReport } from './score.js';
+import { SUMMARY_PROGRESS, summariseSite } from './summary.js';
 
 /**
  * The scan pipeline end to end: normalise, collect, assess each dimension,
@@ -42,18 +43,19 @@ import { bandFor, scoreReport } from './score.js';
  * @property {string} rubricHash
  * @property {string} model
  * @property {{ id: string, title: string }} siteType  the kind of site the scan was scored as
+ * @property {import('./summary.js').SiteSummary | null} summary  what the reader understood the business to be from the home page text; null when it could not be written
  * @property {number | null} overall  0 to 100
  * @property {{ id: string, label: string }} band
  * @property {ReportDimension[]} dimensions
  * @property {{ fetches: number, llmCalls: number, tokens: { input: number, output: number, thoughts: number }, elapsedMs: number, sampledPages: string[], problems: string[] }} stats
  */
 
-export const REPORT_VERSION = 2;
+export const REPORT_VERSION = 3;
 
 /**
  * @typedef {Object} ScanProgress
- * @property {'collect' | 'assess'} phase
- * @property {string} step  collector id or dimension id
+ * @property {'collect' | 'summary' | 'assess'} phase
+ * @property {string} step  collector id, 'summary', or dimension id
  * @property {string} label  text for the spinner line
  * @property {'start' | 'done'} status
  * @property {Array<{ id: string, label: string }>} [checks]  the checks covered by an assess step, with their progress labels
@@ -92,6 +94,21 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
   const problems = [];
   /** @type {Map<string, import('./assess.js').CheckResult>} */
   const resultsById = new Map();
+
+  // what the site is about, read from the home page text before any check is judged
+  onProgress({ phase: 'summary', step: 'summary', label: SUMMARY_PROGRESS, status: 'start' });
+  let summary = null;
+  try {
+    const outcome = await summariseSite({ evidence, provider, calls, signal, sleep });
+    summary = outcome.summary;
+    tokens.input += outcome.usage.input;
+    tokens.output += outcome.usage.output;
+    tokens.thoughts += outcome.usage.thoughts;
+    problems.push(...outcome.problems.map((p) => `summary: ${p}`));
+  } catch (err) {
+    throw toScanError(err);
+  }
+  onProgress({ phase: 'summary', step: 'summary', label: SUMMARY_PROGRESS, status: 'done' });
 
   for (const dimension of rubric.dimensions) {
     const label = dimension.progress ?? `Assessing ${dimension.title.toLowerCase()}...`;
@@ -154,6 +171,7 @@ export async function runScan({ url, provider, fetchImpl, onProgress = () => {},
     rubricHash: await rubricHash(),
     model: provider.model,
     siteType: { id: siteType.id, title: siteType.title },
+    summary,
     overall: scores.overall,
     band: bandFor(scores.overall),
     dimensions,

@@ -60,23 +60,26 @@ describe('runScan', () => {
     expect(report.overall).toBe(94);
     expect(report.band.id).toBe('strong');
 
-    expect(report.stats.llmCalls).toBe(rubric.dimensions.length);
+    expect(report.stats.llmCalls).toBe(rubric.dimensions.length + 1);
+    expect(report.summary).toEqual({ text: expect.stringContaining('Mock summary'), unclear: expect.stringContaining('Mock note'), source: 'home_html' });
     expect(report.stats.fetches).toBeGreaterThan(5);
     expect(report.stats.tokens.input).toBeGreaterThan(0);
     expect(report.stats.sampledPages).toEqual([`${ORIGIN}/pricing`, `${ORIGIN}/about`]);
     expect(report.stats.problems).toEqual([]);
 
-    // progress: collectors first, then one assess step per dimension carrying its check labels
+    // progress: collectors first, then the summary, then one assess step per dimension carrying its check labels
     for (const step of PHASES.flat()) expect(progress).toContain(`collect:done:${step.id}`);
+    expect(progress.filter((p) => p.startsWith('summary:'))).toEqual(['summary:start:summary', 'summary:done:summary']);
     const assessSteps = progress.filter((p) => p.startsWith('assess:'));
     expect(assessSteps).toEqual(rubric.dimensions.flatMap((d) => [`assess:start:${d.id}`, `assess:done:${d.id}`]));
-    expect(progress.indexOf('assess:start:discovery')).toBeGreaterThan(progress.lastIndexOf('collect:done:api'));
+    expect(progress.indexOf('summary:start:summary')).toBeGreaterThan(progress.lastIndexOf('collect:done:api'));
+    expect(progress.indexOf('assess:start:discovery')).toBeGreaterThan(progress.indexOf('summary:done:summary'));
   });
 
   it('scores by the chosen site type, skips its checks without asking the model, and records it', async () => {
     /** @type {string[]} */
     const asked = [];
-    const provider = createMockProvider({ override: (id) => (asked.push(id), { score: 4 }) });
+    const provider = createMockProvider({ override: (id) => (id === 'summary' ? {} : (asked.push(id), { score: 4 })) });
     /** @type {any[]} */
     const events = [];
     const report = await runScan({ url: `${ORIGIN}/`, provider, fetchImpl: site, siteType: 'publisher', onProgress: (e) => events.push(e) });
@@ -108,6 +111,15 @@ describe('runScan', () => {
     const discovery = events.find((e) => e.phase === 'assess' && e.step === 'discovery');
     expect(discovery.label).toBe('Assessing discovery and access...');
     expect(discovery.checks).toEqual(rubric.dimensionById.get('discovery').checks.map((c) => ({ id: c.id, label: c.progress })));
+  });
+
+  it('keeps the report when the summary cannot be written and records why', async () => {
+    const provider = createMockProvider({ override: (id) => (id === 'summary' ? { summary: '' } : {}) });
+    const report = await runScan({ url: `${ORIGIN}/`, provider, fetchImpl: site });
+    expect(report.summary).toBeNull();
+    expect(report.stats.problems).toEqual(['summary: no summary text']);
+    expect(report.stats.llmCalls).toBe(rubric.dimensions.length + 1);
+    expect(typeof report.overall).toBe('number');
   });
 
   it('turns a quota error into a clear scan error', async () => {

@@ -14,6 +14,7 @@ function report(overrides = {}) {
     model: 'mock-1',
     overall: 50,
     band: { id: 'fair', label: 'Fair' },
+    summary: { text: 'Acme makes widgets.', unclear: '', source: 'home_html' },
     dimensions: [],
     stats: { fetches: 1, llmCalls: 1, tokens: { input: 0, output: 0, thoughts: 0 }, elapsedMs: 1, sampledPages: [], problems: [] },
     ...overrides,

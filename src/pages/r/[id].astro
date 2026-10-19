@@ -83,6 +83,20 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
         </div>
       </header>
 
+      {report.summary && (
+        <section class="report-wrap understanding" aria-labelledby="understanding-title">
+          <p class="label">Read from the home page</p>
+          <h2 id="understanding-title">What an agent takes {host} to be</h2>
+          <p class="understanding-text">{report.summary.text}</p>
+          {report.summary.unclear && (
+            <p class="understanding-unclear"><span class="understanding-key">Not clear from the home page</span> {report.summary.unclear}</p>
+          )}
+          <p class="understanding-note">
+            Written by the assessor from the text of the home page alone, without scripts, images or styling, which is how most agents first read a site. If this description is wrong or incomplete, agents answering questions about {host} are likely to be wrong or incomplete in the same way.
+          </p>
+        </section>
+      )}
+
       <div class="report-wrap report-body">
         {report.dimensions.map((d, i) => <DimensionSection dimension={d} index={i + 1} />)}
       </div>
@@ -218,6 +232,44 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
     gap: 10px;
   }
 
+  .understanding {
+    margin-top: 8px;
+    padding-top: 48px;
+    padding-bottom: 8px;
+  }
+  .understanding .label { display: block; margin-bottom: 18px; }
+  .understanding h2 {
+    font-size: clamp(26px, 2.8vw, 36px);
+    max-width: 24ch;
+    overflow-wrap: anywhere;
+  }
+  .understanding-text {
+    margin-top: 18px;
+    max-width: 64ch;
+    font-size: var(--text-support);
+    line-height: 1.55;
+  }
+  .understanding-unclear {
+    margin-top: 16px;
+    max-width: 64ch;
+    font-size: var(--text-base);
+  }
+  .understanding-key {
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--text-label);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+  .understanding-note {
+    margin-top: 18px;
+    max-width: 64ch;
+    font-size: var(--text-small);
+    color: var(--ink-muted);
+  }
+
   .report-body { padding-bottom: 32px; }
 
   .report-foot {
@@ -276,6 +328,7 @@ const shareUrl = new URL(Astro.url.pathname, site.url).toString();
   @media (max-width: 768px) {
     .report-head { padding-top: 48px; }
     .overall { grid-template-columns: 1fr; padding: 28px 24px; border-radius: var(--r-lg); }
+    .understanding { padding-top: 36px; }
     .report-foot dl > div { grid-template-columns: 1fr; gap: 4px; }
     .conversation { padding: 56px 24px; border-radius: var(--r-lg); }
   }
