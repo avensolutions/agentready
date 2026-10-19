@@ -63,7 +63,7 @@ npx wrangler login
 npx wrangler whoami
 ```
 
-Confirm the account owns `theoverstorygroup.com`. If you have multiple accounts, add its ID as a top-level `"account_id": "YOUR_ACCOUNT_ID"` in `wrangler.jsonc` before continuing.
+Confirm the account owns `theoverstorygroup.com`. If you have multiple accounts, paste its ID into the commented-out top-level `account_id` line in `wrangler.jsonc`, replacing `<CLOUDFLARE_ACCOUNT_ID>`, and uncomment it before continuing.
 
 ### 2. Create report storage
 
@@ -73,11 +73,11 @@ Create the production KV namespace once:
 npx wrangler kv namespace create REPORTS
 ```
 
-Replace `REPLACE_WITH_KV_NAMESPACE_ID` in `wrangler.jsonc` with the returned `id`, keeping `"binding": "REPORTS"`. Keep the existing `SCAN_LIMITER` rate limiting binding. If it is rejected during deployment, resolve that error before releasing the scan endpoint.
+`wrangler.jsonc` already carries the production namespace id. Only run the command above if the namespace has to be recreated, then replace the `id` in `kv_namespaces`, keeping `"binding": "REPORTS"`. Keep the existing `SCAN_LIMITER` rate limiting binding. If it is rejected during deployment, resolve that error before releasing the scan endpoint.
 
 ### 3. Configure the subdomain
 
-Merge these top-level properties into `wrangler.jsonc`, replacing the commented-out `routes` example at the bottom. Add a comma after the `previews` block. Keep the other settings and bindings.
+`wrangler.jsonc` already carries these top-level properties at the bottom of the file. Check they are present and keep the other settings and bindings.
 
 ```json
 {

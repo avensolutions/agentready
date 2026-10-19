@@ -2,6 +2,18 @@
 
 Follow [Deploy to Cloudflare Workers in the README](../README.md#deploy-to-cloudflare-workers) for account setup, KV, Turnstile, secrets and the `agentready.theoverstorygroup.com` Custom Domain. Run the commands below from the repository root.
 
+## Values to generate
+
+Everything below is specific to the Cloudflare account or the Google project and is not in the repository. Generate the values in this order, then follow the README steps and [Branch previews](#branch-previews) to put each one where it belongs.
+
+1. The production KV namespace id in `kv_namespaces` in `wrangler.jsonc`: already set, from `npx wrangler kv namespace create REPORTS`. Only run that command again if the namespace has to be recreated, then replace the `id`.
+2. `<PREVIEW_KV_NAMESPACE_ID>` in `previews.kv_namespaces` in `wrangler.jsonc`: the `id` returned by `npx wrangler kv namespace create REPORTS_PREVIEW`.
+3. `<CLOUDFLARE_ACCOUNT_ID>`, only when the login has more than one account: the account id listed by `npx wrangler whoami`. Paste it into the commented-out `account_id` line in `wrangler.jsonc` and uncomment it.
+4. `GEMINI_API_KEY`: from [Google AI Studio](https://aistudio.google.com/apikey). Never goes in the file. Store it with `npx wrangler secret put GEMINI_API_KEY` for production and `npx wrangler preview base-config secret put GEMINI_API_KEY` for previews.
+5. `TURNSTILE_SECRET_KEY` and `PUBLIC_TURNSTILE_SITE_KEY`: from a Turnstile widget in the Cloudflare dashboard (**Turnstile -> Add widget**) with the hostnames `agentready.theoverstorygroup.com` and the account's `workers.dev` subdomain, or the [documented test keys](limits.md#turnstile) for previews. Store the secret with `npx wrangler secret put TURNSTILE_SECRET_KEY` for production and `npx wrangler preview base-config secret put TURNSTILE_SECRET_KEY` for previews. The site key is public and is baked in at build time: set it as the `PUBLIC_TURNSTILE_SITE_KEY` build variable in Workers Builds and in `.env` locally.
+6. The Workers Builds connection: open the `agentready` Worker in the dashboard, then **Settings -> Builds -> Connect**. Production branch `main`, build command `npm run build`, deploy command `npx wrangler deploy`, preview command left at the default.
+7. `ALERT_EMAIL_API_TOKEN`, only if Gemini limit alerts are wanted: a Cloudflare API token with Email Sending: Edit, scoped to the account, stored with `npx wrangler secret put ALERT_EMAIL_API_TOKEN`. The three `ALERT_EMAIL_*` vars are already in `wrangler.jsonc`; see [Gemini limit alerts in the README](../README.md#gemini-limit-alerts).
+
 ## Check it works
 
 - Run a scan of a public site. The report should open at `/r/<id>`, and a second scan of the same address should run in full again and replace the stored report (every scan is live).
@@ -44,7 +56,7 @@ Cloudflare's equivalent of a Netlify deploy preview is a Workers Preview, built 
 
 A Preview does not inherit production settings. It takes its vars and bindings from the `previews` block in `wrangler.jsonc` and its secrets from the Previews base configuration, so set these up once before connecting the repository.
 
-1. Create a KV namespace for preview reports and put its id in `previews.kv_namespaces` in `wrangler.jsonc`, replacing `REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID`. Preview scans then never write to the production namespace, and their reports expire after a day.
+1. Create a KV namespace for preview reports and put its id in `previews.kv_namespaces` in `wrangler.jsonc`, replacing `<PREVIEW_KV_NAMESPACE_ID>`. Preview scans then never write to the production namespace, and their reports expire after a day.
 
    ```sh
    npx wrangler kv namespace create REPORTS_PREVIEW
